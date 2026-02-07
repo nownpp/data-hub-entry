@@ -1,12 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { toast } from "sonner";
-import { User, Phone, CheckCircle2, ClipboardList } from "lucide-react";
-import { Link } from "react-router-dom";
+import { User, Phone, CheckCircle2, ClipboardList, BarChart3 } from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
 import { z } from "zod";
 
 const submissionSchema = z.object({
@@ -19,6 +19,48 @@ const SubmissionForm = () => {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [myCount, setMyCount] = useState(0);
+  const [collectorValid, setCollectorValid] = useState<boolean | null>(null);
+
+  const [searchParams] = useSearchParams();
+  const collectorName = searchParams.get("collector");
+
+  // Validate collector and fetch their count
+  useEffect(() => {
+    if (!collectorName) {
+      setCollectorValid(null);
+      return;
+    }
+
+    const validateAndCount = async () => {
+      // Validate collector exists
+      const { data: collector } = await supabase
+        .from("collectors")
+        .select("name")
+        .eq("name", collectorName)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (!collector) {
+        setCollectorValid(false);
+        return;
+      }
+
+      setCollectorValid(true);
+      fetchMyCount();
+    };
+
+    validateAndCount();
+  }, [collectorName]);
+
+  const fetchMyCount = async () => {
+    if (!collectorName) return;
+    const { count } = await supabase
+      .from("submissions")
+      .select("*", { count: "exact", head: true })
+      .eq("collector_name", collectorName);
+    setMyCount(count || 0);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,6 +75,7 @@ const SubmissionForm = () => {
     const { error } = await supabase.from("submissions").insert({
       full_name: validation.data.full_name,
       phone_number: validation.data.phone_number,
+      collector_name: collectorName || null,
     });
 
     setIsSubmitting(false);
@@ -45,8 +88,28 @@ const SubmissionForm = () => {
     setIsSuccess(true);
     setFullName("");
     setPhoneNumber("");
+    setMyCount((prev) => prev + 1);
     toast.success("تم إرسال البيانات بنجاح!");
   };
+
+  // Invalid collector
+  if (collectorName && collectorValid === false) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 gradient-hero">
+        <Card className="w-full max-w-md shadow-glow animate-fade-up border-0">
+          <CardContent className="pt-12 pb-10 text-center space-y-6">
+            <div className="mx-auto w-20 h-20 rounded-full bg-destructive/10 flex items-center justify-center">
+              <ClipboardList className="w-10 h-10 text-destructive" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-bold text-foreground">رابط غير صالح</h2>
+              <p className="text-muted-foreground">هذا الرابط غير موجود أو تم تعطيله.</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (isSuccess) {
     return (
@@ -60,6 +123,12 @@ const SubmissionForm = () => {
               <h2 className="text-2xl font-bold text-foreground">تم الإرسال بنجاح!</h2>
               <p className="text-muted-foreground">شكراً لك، تم حفظ بياناتك.</p>
             </div>
+            {collectorName && (
+              <div className="bg-secondary rounded-xl p-4">
+                <p className="text-sm text-muted-foreground">إجمالي تسجيلاتك</p>
+                <p className="text-3xl font-bold text-primary">{myCount}</p>
+              </div>
+            )}
             <Button
               onClick={() => setIsSuccess(false)}
               className="w-full"
@@ -92,6 +161,18 @@ const SubmissionForm = () => {
           <CardDescription className="text-base">
             يرجى إدخال بياناتك في الحقول أدناه
           </CardDescription>
+          {collectorName && collectorValid && (
+            <div className="flex items-center justify-center gap-3 pt-2">
+              <div className="bg-secondary rounded-lg px-4 py-2 flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-primary" />
+                <span className="text-sm text-muted-foreground">المُدخل:</span>
+                <span className="font-semibold text-foreground">{collectorName}</span>
+                <span className="text-muted-foreground">•</span>
+                <span className="font-bold text-primary">{myCount}</span>
+                <span className="text-sm text-muted-foreground">تسجيل</span>
+              </div>
+            </div>
+          )}
         </CardHeader>
         <CardContent className="pt-4">
           <form onSubmit={handleSubmit} className="space-y-5">

@@ -14,20 +14,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      collectors: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+        }
+        Relationships: []
+      }
       submissions: {
         Row: {
+          collector_name: string | null
           created_at: string
           full_name: string
           id: string
           phone_number: string
         }
         Insert: {
+          collector_name?: string | null
           created_at?: string
           full_name: string
           id?: string
           phone_number: string
         }
         Update: {
+          collector_name?: string | null
           created_at?: string
           full_name?: string
           id?: string
