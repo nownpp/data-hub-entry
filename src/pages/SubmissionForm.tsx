@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { toast } from "sonner";
-import { User, Phone, CheckCircle2, ClipboardList, BarChart3 } from "lucide-react";
+import { User, Phone, CheckCircle2, ClipboardList, BarChart3, Lock } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { z } from "zod";
 
@@ -144,13 +144,22 @@ const SubmissionForm = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 gradient-hero relative">
-      <Link
-        to="/admin"
-        className="absolute top-4 left-4 text-primary-foreground/60 hover:text-primary-foreground transition-colors text-sm flex items-center gap-1"
-      >
-        <ClipboardList className="w-4 h-4" />
-        دخول المسؤول
-      </Link>
+      <div className="absolute top-4 left-4 flex items-center gap-3">
+        <Link
+          to="/collector"
+          className="text-primary-foreground/60 hover:text-primary-foreground transition-colors text-sm flex items-center gap-1"
+        >
+          <ClipboardList className="w-4 h-4" />
+          دخول المُدخل
+        </Link>
+        <Link
+          to="/admin"
+          className="text-primary-foreground/60 hover:text-primary-foreground transition-colors text-sm flex items-center gap-1"
+        >
+          <Lock className="w-4 h-4" />
+          المسؤول
+        </Link>
+      </div>
 
       <Card className="w-full max-w-md shadow-glow animate-fade-up border-0">
         <CardHeader className="text-center space-y-3 pb-2">

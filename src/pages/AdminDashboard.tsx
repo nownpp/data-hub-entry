@@ -12,7 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { LogOut, Users, Trash2, RefreshCw, UserPlus, Link2, Copy, BarChart3 } from "lucide-react";
+import { LogOut, Users, Trash2, RefreshCw, UserPlus, Link2, Copy, BarChart3, Lock } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
 
 interface Submission {
@@ -40,6 +40,7 @@ const AdminDashboard = () => {
   const [collectors, setCollectors] = useState<Collector[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [newCollectorName, setNewCollectorName] = useState("");
+  const [newCollectorPassword, setNewCollectorPassword] = useState("");
   const [activeTab, setActiveTab] = useState<"submissions" | "collectors">("submissions");
   const [filterCollector, setFilterCollector] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -89,23 +90,28 @@ const AdminDashboard = () => {
 
   const handleAddCollector = async () => {
     const name = newCollectorName.trim();
+    const password = newCollectorPassword.trim();
     if (!name) {
       toast.error("يرجى إدخال اسم المُدخل");
       return;
     }
+    if (!password || password.length < 4) {
+      toast.error("كلمة المرور يجب أن تكون 4 أحرف على الأقل");
+      return;
+    }
 
-    const { error } = await supabase.from("collectors").insert({ name });
-    if (error) {
-      if (error.code === "23505") {
-        toast.error("هذا الاسم موجود بالفعل");
-      } else {
-        toast.error("حدث خطأ أثناء الإضافة");
-      }
+    const { data, error } = await supabase.functions.invoke("collector-auth", {
+      body: { action: "create", name, password },
+    });
+
+    if (error || data?.error) {
+      toast.error(data?.error || "حدث خطأ أثناء الإضافة");
       return;
     }
 
     toast.success("تم إضافة المُدخل بنجاح");
     setNewCollectorName("");
+    setNewCollectorPassword("");
     fetchCollectors();
   };
 
@@ -402,16 +408,27 @@ const AdminDashboard = () => {
               <CardHeader>
                 <CardTitle className="text-lg">إضافة مُدخل جديد</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="flex gap-3">
+               <CardContent>
+                <div className="flex flex-col sm:flex-row gap-3">
                   <Input
                     value={newCollectorName}
                     onChange={(e) => setNewCollectorName(e.target.value)}
                     placeholder="اسم المُدخل"
                     className="text-right"
                     maxLength={50}
-                    onKeyDown={(e) => e.key === "Enter" && handleAddCollector()}
                   />
+                  <div className="relative">
+                    <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      value={newCollectorPassword}
+                      onChange={(e) => setNewCollectorPassword(e.target.value)}
+                      placeholder="كلمة المرور"
+                      type="password"
+                      className="pr-10 text-right"
+                      maxLength={50}
+                      dir="ltr"
+                    />
+                  </div>
                   <Button onClick={handleAddCollector} className="gap-2 shrink-0">
                     <UserPlus className="w-4 h-4" />
                     إضافة
