@@ -44,6 +44,7 @@ export type Database = {
           created_at: string
           full_name: string
           id: string
+          is_delivered: boolean
           phone_number: string
         }
         Insert: {
@@ -51,6 +52,7 @@ export type Database = {
           created_at?: string
           full_name: string
           id?: string
+          is_delivered?: boolean
           phone_number: string
         }
         Update: {
@@ -58,7 +60,29 @@ export type Database = {
           created_at?: string
           full_name?: string
           id?: string
+          is_delivered?: boolean
           phone_number?: string
+        }
+        Relationships: []
+      }
+      system_settings: {
+        Row: {
+          id: string
+          key: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          id?: string
+          key: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          id?: string
+          key?: string
+          updated_at?: string
+          value?: string
         }
         Relationships: []
       }

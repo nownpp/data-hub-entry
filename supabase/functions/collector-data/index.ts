@@ -67,10 +67,10 @@ Deno.serve(async (req) => {
 
     const collectorName = payload.collector_name as string;
 
-    // Fetch submissions for this collector
+    // Fetch submissions for this collector (include is_delivered)
     const { data: submissions, error } = await supabase
       .from("submissions")
-      .select("id, full_name, phone_number, created_at")
+      .select("id, full_name, phone_number, created_at, is_delivered")
       .eq("collector_name", collectorName)
       .order("created_at", { ascending: false });
 
@@ -81,11 +81,23 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Fetch system settings
+    const { data: settings } = await supabase
+      .from("system_settings")
+      .select("key, value");
+
+    const settingsMap: Record<string, string> = {};
+    (settings || []).forEach((s: { key: string; value: string }) => {
+      settingsMap[s.key] = s.value;
+    });
+
     return new Response(
       JSON.stringify({
         collector_name: collectorName,
         submissions: submissions || [],
         total: (submissions || []).length,
+        service_price: parseFloat(settingsMap.service_price || "0"),
+        commission_amount: parseFloat(settingsMap.commission_amount || "0"),
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
