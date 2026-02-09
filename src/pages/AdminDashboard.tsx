@@ -12,8 +12,21 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { LogOut, Users, Trash2, RefreshCw, UserPlus, Link2, Copy, BarChart3, Lock } from "lucide-react";
-import { useNavigate, Link } from "react-router-dom";
+import {
+  LogOut,
+  Users,
+  Trash2,
+  RefreshCw,
+  UserPlus,
+  Copy,
+  Lock,
+  Check,
+  X,
+} from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import SettingsCard from "@/components/admin/SettingsCard";
+import FinancialStatsCards from "@/components/admin/FinancialStatsCards";
+import CollectorFinanceTable from "@/components/admin/CollectorFinanceTable";
 
 interface Submission {
   id: string;
@@ -21,6 +34,7 @@ interface Submission {
   phone_number: string;
   created_at: string;
   collector_name: string | null;
+  is_delivered: boolean;
 }
 
 interface Collector {
@@ -30,19 +44,16 @@ interface Collector {
   created_at: string;
 }
 
-interface CollectorStats {
-  name: string;
-  count: number;
-}
-
 const AdminDashboard = () => {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [collectors, setCollectors] = useState<Collector[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [newCollectorName, setNewCollectorName] = useState("");
   const [newCollectorPassword, setNewCollectorPassword] = useState("");
-  const [activeTab, setActiveTab] = useState<"submissions" | "collectors">("submissions");
+  const [activeTab, setActiveTab] = useState<"submissions" | "collectors" | "finance">("submissions");
   const [filterCollector, setFilterCollector] = useState<string | null>(null);
+  const [servicePrice, setServicePrice] = useState(0);
+  const [commissionAmount, setCommissionAmount] = useState(0);
   const navigate = useNavigate();
 
   const fetchSubmissions = async () => {
@@ -74,8 +85,21 @@ const AdminDashboard = () => {
     setCollectors(data || []);
   };
 
+  const fetchSettings = async () => {
+    const { data } = await supabase
+      .from("system_settings")
+      .select("key, value");
+
+    if (data) {
+      data.forEach((s) => {
+        if (s.key === "service_price") setServicePrice(parseFloat(s.value) || 0);
+        if (s.key === "commission_amount") setCommissionAmount(parseFloat(s.value) || 0);
+      });
+    }
+  };
+
   const fetchAll = async () => {
-    await Promise.all([fetchSubmissions(), fetchCollectors()]);
+    await Promise.all([fetchSubmissions(), fetchCollectors(), fetchSettings()]);
   };
 
   const handleDeleteSubmission = async (id: string) => {
@@ -86,6 +110,23 @@ const AdminDashboard = () => {
     }
     toast.success("تم حذف السجل بنجاح");
     setSubmissions((prev) => prev.filter((s) => s.id !== id));
+  };
+
+  const handleToggleDelivery = async (id: string, currentStatus: boolean) => {
+    const { error } = await supabase
+      .from("submissions")
+      .update({ is_delivered: !currentStatus })
+      .eq("id", id);
+
+    if (error) {
+      toast.error("حدث خطأ");
+      return;
+    }
+
+    setSubmissions((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, is_delivered: !currentStatus } : s))
+    );
+    toast.success(!currentStatus ? "تم تأكيد التوريد" : "تم إلغاء التوريد");
   };
 
   const handleAddCollector = async () => {
@@ -181,17 +222,19 @@ const AdminDashboard = () => {
     });
   };
 
-  // Calculate collector stats
-  const collectorStats: CollectorStats[] = collectors.map((c) => ({
-    name: c.name,
-    count: submissions.filter((s) => s.collector_name === c.name).length,
-  })).sort((a, b) => b.count - a.count);
-
-  const unknownCount = submissions.filter((s) => !s.collector_name).length;
+  const collectorStats = collectors
+    .map((c) => ({
+      name: c.name,
+      count: submissions.filter((s) => s.collector_name === c.name).length,
+    }))
+    .sort((a, b) => b.count - a.count);
 
   const filteredSubmissions = filterCollector
     ? submissions.filter((s) => s.collector_name === filterCollector)
     : submissions;
+
+  const deliveredCount = submissions.filter((s) => s.is_delivered).length;
+  const undeliveredCount = submissions.length - deliveredCount;
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
@@ -204,16 +247,11 @@ const AdminDashboard = () => {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-foreground">لوحة المسؤول</h1>
-              <p className="text-sm text-muted-foreground">إدارة البيانات والمُدخلين</p>
+              <p className="text-sm text-muted-foreground">إدارة البيانات والمُدخلين والمالية</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={fetchAll}
-              disabled={isLoading}
-            >
+            <Button variant="outline" size="icon" onClick={fetchAll} disabled={isLoading}>
               <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
             </Button>
             <Button variant="outline" onClick={handleLogout} className="gap-2">
@@ -223,77 +261,45 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 animate-fade-up">
-          <Card className="shadow-card">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
-                  <Users className="w-5 h-5 text-primary" />
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">إجمالي التسجيلات</p>
-                  <p className="text-2xl font-bold text-foreground">{submissions.length}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="shadow-card">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
-                  <UserPlus className="w-5 h-5 text-primary" />
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">عدد المُدخلين</p>
-                  <p className="text-2xl font-bold text-foreground">{collectors.length}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="shadow-card">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
-                  <BarChart3 className="w-5 h-5 text-primary" />
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">بدون مُدخل</p>
-                  <p className="text-2xl font-bold text-foreground">{unknownCount}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        {/* Financial Stats */}
+        <FinancialStatsCards
+          totalSubmissions={submissions.length}
+          collectorsCount={collectors.length}
+          servicePrice={servicePrice}
+          commissionAmount={commissionAmount}
+          deliveredCount={deliveredCount}
+          undeliveredCount={undeliveredCount}
+        />
 
         {/* Tabs */}
-        <div className="flex gap-2 border-b border-border pb-0">
-          <button
-            onClick={() => { setActiveTab("submissions"); setFilterCollector(null); }}
-            className={`px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors ${
-              activeTab === "submissions"
-                ? "bg-card text-foreground border border-border border-b-card -mb-px"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            البيانات المسجلة
-          </button>
-          <button
-            onClick={() => setActiveTab("collectors")}
-            className={`px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors ${
-              activeTab === "collectors"
-                ? "bg-card text-foreground border border-border border-b-card -mb-px"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            إدارة المُدخلين
-          </button>
+        <div className="flex gap-2 border-b border-border pb-0 overflow-x-auto">
+          {(
+            [
+              { key: "submissions", label: "البيانات المسجلة" },
+              { key: "finance", label: "المالية" },
+              { key: "collectors", label: "إدارة المُدخلين" },
+            ] as const
+          ).map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => {
+                setActiveTab(tab.key);
+                if (tab.key !== "submissions") setFilterCollector(null);
+              }}
+              className={`px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors whitespace-nowrap ${
+                activeTab === tab.key
+                  ? "bg-card text-foreground border border-border border-b-card -mb-px"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
         {/* Submissions Tab */}
         {activeTab === "submissions" && (
           <div className="space-y-4 animate-fade-in">
-            {/* Collector Stats Summary */}
             {collectorStats.length > 0 && (
               <Card className="shadow-card">
                 <CardHeader className="pb-3">
@@ -329,7 +335,6 @@ const AdminDashboard = () => {
               </Card>
             )}
 
-            {/* Submissions Table */}
             <Card className="shadow-card">
               <CardHeader>
                 <CardTitle className="text-lg">
@@ -347,7 +352,7 @@ const AdminDashboard = () => {
                     <p>لا توجد بيانات مسجلة بعد</p>
                   </div>
                 ) : (
-                  <div className="rounded-lg border overflow-hidden">
+                  <div className="rounded-lg border overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow className="bg-muted/50">
@@ -355,6 +360,7 @@ const AdminDashboard = () => {
                           <TableHead className="text-right font-semibold">الاسم</TableHead>
                           <TableHead className="text-right font-semibold">رقم الهاتف</TableHead>
                           <TableHead className="text-right font-semibold">المُدخل</TableHead>
+                          <TableHead className="text-right font-semibold">التوريد</TableHead>
                           <TableHead className="text-right font-semibold">التاريخ</TableHead>
                           <TableHead className="text-right font-semibold">إجراء</TableHead>
                         </TableRow>
@@ -366,7 +372,9 @@ const AdminDashboard = () => {
                               {index + 1}
                             </TableCell>
                             <TableCell className="font-medium">{submission.full_name}</TableCell>
-                            <TableCell dir="ltr" className="text-left">{submission.phone_number}</TableCell>
+                            <TableCell dir="ltr" className="text-left">
+                              {submission.phone_number}
+                            </TableCell>
                             <TableCell>
                               {submission.collector_name ? (
                                 <span className="bg-secondary text-secondary-foreground px-2 py-0.5 rounded-md text-xs font-medium">
@@ -375,6 +383,28 @@ const AdminDashboard = () => {
                               ) : (
                                 <span className="text-muted-foreground text-xs">—</span>
                               )}
+                            </TableCell>
+                            <TableCell>
+                              <button
+                                onClick={() =>
+                                  handleToggleDelivery(submission.id, submission.is_delivered)
+                                }
+                                className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                                  submission.is_delivered
+                                    ? "bg-success/10 text-success"
+                                    : "bg-destructive/10 text-destructive"
+                                }`}
+                              >
+                                {submission.is_delivered ? (
+                                  <span className="flex items-center gap-1">
+                                    <Check className="w-3 h-3" /> تم التوريد
+                                  </span>
+                                ) : (
+                                  <span className="flex items-center gap-1">
+                                    <X className="w-3 h-3" /> معلّق
+                                  </span>
+                                )}
+                              </button>
                             </TableCell>
                             <TableCell className="text-muted-foreground text-sm">
                               {formatDate(submission.created_at)}
@@ -400,15 +430,31 @@ const AdminDashboard = () => {
           </div>
         )}
 
+        {/* Finance Tab */}
+        {activeTab === "finance" && (
+          <div className="space-y-4 animate-fade-in">
+            <SettingsCard
+              servicePrice={servicePrice}
+              commissionAmount={commissionAmount}
+              onSettingsUpdated={fetchSettings}
+            />
+            <CollectorFinanceTable
+              collectors={collectors}
+              submissions={submissions}
+              servicePrice={servicePrice}
+              commissionAmount={commissionAmount}
+            />
+          </div>
+        )}
+
         {/* Collectors Tab */}
         {activeTab === "collectors" && (
           <div className="space-y-4 animate-fade-in">
-            {/* Add Collector */}
             <Card className="shadow-card">
               <CardHeader>
                 <CardTitle className="text-lg">إضافة مُدخل جديد</CardTitle>
               </CardHeader>
-               <CardContent>
+              <CardContent>
                 <div className="flex flex-col sm:flex-row gap-3">
                   <Input
                     value={newCollectorName}
@@ -437,7 +483,6 @@ const AdminDashboard = () => {
               </CardContent>
             </Card>
 
-            {/* Collectors List */}
             <Card className="shadow-card">
               <CardHeader>
                 <CardTitle className="text-lg">المُدخلين ({collectors.length})</CardTitle>
@@ -473,7 +518,9 @@ const AdminDashboard = () => {
                               </TableCell>
                               <TableCell>
                                 <button
-                                  onClick={() => handleToggleCollector(collector.id, collector.is_active)}
+                                  onClick={() =>
+                                    handleToggleCollector(collector.id, collector.is_active)
+                                  }
                                   className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
                                     collector.is_active
                                       ? "bg-success/10 text-success"
