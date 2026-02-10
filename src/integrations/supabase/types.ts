@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      batches: {
+        Row: {
+          collector_name: string
+          commission_amount: number
+          created_at: string
+          delivered_at: string | null
+          id: string
+          is_delivered: boolean
+          net_amount: number
+          submissions_count: number
+          total_amount: number
+        }
+        Insert: {
+          collector_name: string
+          commission_amount?: number
+          created_at?: string
+          delivered_at?: string | null
+          id?: string
+          is_delivered?: boolean
+          net_amount?: number
+          submissions_count?: number
+          total_amount?: number
+        }
+        Update: {
+          collector_name?: string
+          commission_amount?: number
+          created_at?: string
+          delivered_at?: string | null
+          id?: string
+          is_delivered?: boolean
+          net_amount?: number
+          submissions_count?: number
+          total_amount?: number
+        }
+        Relationships: []
+      }
       collectors: {
         Row: {
           created_at: string
@@ -40,6 +76,7 @@ export type Database = {
       }
       submissions: {
         Row: {
+          batch_id: string | null
           collector_name: string | null
           created_at: string
           full_name: string
@@ -48,6 +85,7 @@ export type Database = {
           phone_number: string
         }
         Insert: {
+          batch_id?: string | null
           collector_name?: string | null
           created_at?: string
           full_name: string
@@ -56,6 +94,7 @@ export type Database = {
           phone_number: string
         }
         Update: {
+          batch_id?: string | null
           collector_name?: string | null
           created_at?: string
           full_name?: string
@@ -63,7 +102,15 @@ export type Database = {
           is_delivered?: boolean
           phone_number?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "submissions_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "batches"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       system_settings: {
         Row: {

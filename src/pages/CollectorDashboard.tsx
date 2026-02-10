@@ -26,6 +26,7 @@ import {
   Truck,
   Check,
   X,
+  Package,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { z } from "zod";
@@ -50,10 +51,24 @@ interface Submission {
   phone_number: string;
   created_at: string;
   is_delivered: boolean;
+  batch_id: string | null;
+}
+
+interface Batch {
+  id: string;
+  collector_name: string;
+  is_delivered: boolean;
+  submissions_count: number;
+  total_amount: number;
+  commission_amount: number;
+  net_amount: number;
+  created_at: string;
+  delivered_at: string | null;
 }
 
 const CollectorDashboard = () => {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [batches, setBatches] = useState<Batch[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [fullName, setFullName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -61,6 +76,8 @@ const CollectorDashboard = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [servicePrice, setServicePrice] = useState(0);
   const [commissionAmount, setCommissionAmount] = useState(0);
+  const [isCreatingBatch, setIsCreatingBatch] = useState(false);
+  const [activeTab, setActiveTab] = useState<"form" | "batches" | "history">("form");
   const navigate = useNavigate();
 
   const collectorName = sessionStorage.getItem("collector_name");
@@ -86,6 +103,7 @@ const CollectorDashboard = () => {
     }
 
     setSubmissions(data.submissions || []);
+    setBatches(data.batches || []);
     setServicePrice(data.service_price || 0);
     setCommissionAmount(data.commission_amount || 0);
     setIsLoading(false);
@@ -141,6 +159,25 @@ const CollectorDashboard = () => {
     fetchSubmissions();
   };
 
+  const handleCreateBatch = async () => {
+    if (!collectorToken) return;
+    setIsCreatingBatch(true);
+
+    const { data, error } = await supabase.functions.invoke("collector-data", {
+      body: { token: collectorToken, action: "create_batch" },
+    });
+
+    setIsCreatingBatch(false);
+
+    if (error || data?.error) {
+      toast.error(data?.error || "حدث خطأ في إنشاء الدفعة");
+      return;
+    }
+
+    toast.success(`تم إنشاء دفعة بـ ${data.count} تسجيل`);
+    fetchSubmissions();
+  };
+
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString("ar-EG", {
       year: "numeric",
@@ -154,12 +191,11 @@ const CollectorDashboard = () => {
   // Financial calculations
   const totalCount = submissions.length;
   const totalCommission = totalCount * commissionAmount;
-  const totalCollected = totalCount * servicePrice;
   const netPerSub = servicePrice - commissionAmount;
   const totalToDeliver = totalCount * netPerSub;
-  const deliveredCount = submissions.filter((s) => s.is_delivered).length;
-  const deliveredAmount = deliveredCount * netPerSub;
-  const pendingAmount = (totalCount - deliveredCount) * netPerSub;
+  const unbatchedCount = submissions.filter((s) => !s.is_delivered && !s.batch_id).length;
+  const pendingBatches = batches.filter((b) => !b.is_delivered);
+  const pendingAmount = pendingBatches.reduce((sum, b) => sum + Number(b.net_amount), 0);
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
@@ -252,145 +288,283 @@ const CollectorDashboard = () => {
           </Card>
         </div>
 
-        {/* Submission Form */}
-        <Card className="shadow-card animate-fade-up">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg">إدخال بيانات جديدة</CardTitle>
-            <CardDescription>
-              سعر الخدمة: {servicePrice} | عمولتك: {commissionAmount} لكل تسجيل
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {showSuccess && (
-              <div className="mb-4 p-3 rounded-lg bg-success/10 flex items-center gap-2 text-success">
-                <CheckCircle2 className="w-5 h-5" />
-                <span className="text-sm font-medium">تم الإرسال بنجاح!</span>
-              </div>
-            )}
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="fullName" className="text-sm font-medium">
-                    الاسم الكامل
-                  </Label>
-                  <div className="relative">
-                    <User className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      id="fullName"
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      placeholder="أدخل الاسم الكامل"
-                      className="pr-10 text-right"
-                      required
-                      maxLength={100}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phoneNumber" className="text-sm font-medium">
-                    رقم الهاتف
-                  </Label>
-                  <div className="relative">
-                    <Phone className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      id="phoneNumber"
-                      value={phoneNumber}
-                      onChange={(e) => setPhoneNumber(e.target.value)}
-                      placeholder="أدخل رقم الهاتف"
-                      className="pr-10 text-right"
-                      type="tel"
-                      required
-                      maxLength={20}
-                      dir="ltr"
-                    />
-                  </div>
-                </div>
-              </div>
-              <Button
-                type="submit"
-                className="w-full sm:w-auto"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? "جاري الإرسال..." : "إرسال البيانات"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+        {/* Tabs */}
+        <div className="flex gap-2 border-b border-border pb-0 overflow-x-auto">
+          {(
+            [
+              { key: "form" as const, label: "إدخال بيانات" },
+              { key: "batches" as const, label: `الدفعات (${batches.length})` },
+              { key: "history" as const, label: `السجل (${submissions.length})` },
+            ]
+          ).map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors whitespace-nowrap ${
+                activeTab === tab.key
+                  ? "bg-card text-foreground border border-border border-b-card -mb-px"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-        {/* Submissions Table */}
-        <Card className="shadow-card animate-fade-up">
-          <CardHeader>
-            <CardTitle className="text-lg">
-              سجل البيانات المُدخلة ({submissions.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="text-center py-12 text-muted-foreground">
-                جاري تحميل البيانات...
-              </div>
-            ) : submissions.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <ClipboardList className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                <p>لم تقم بإدخال أي بيانات بعد</p>
-              </div>
-            ) : (
-              <div className="rounded-lg border overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/50">
-                      <TableHead className="text-right font-semibold">#</TableHead>
-                      <TableHead className="text-right font-semibold">الاسم</TableHead>
-                      <TableHead className="text-right font-semibold">رقم الهاتف</TableHead>
-                      <TableHead className="text-right font-semibold">التوريد</TableHead>
-                      <TableHead className="text-right font-semibold">التاريخ</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {submissions.map((submission, index) => (
-                      <TableRow
-                        key={submission.id}
-                        className="hover:bg-muted/30 transition-colors"
-                      >
-                        <TableCell className="font-medium text-muted-foreground">
-                          {index + 1}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {submission.full_name}
-                        </TableCell>
-                        <TableCell dir="ltr" className="text-left">
-                          {submission.phone_number}
-                        </TableCell>
-                        <TableCell>
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                              submission.is_delivered
-                                ? "bg-success/10 text-success"
-                                : "bg-destructive/10 text-destructive"
-                            }`}
-                          >
-                            {submission.is_delivered ? (
-                              <span className="flex items-center gap-1">
-                                <Check className="w-3 h-3" /> تم
-                              </span>
-                            ) : (
-                              <span className="flex items-center gap-1">
-                                <X className="w-3 h-3" /> معلّق
-                              </span>
-                            )}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-sm">
-                          {formatDate(submission.created_at)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+        {/* Form Tab */}
+        {activeTab === "form" && (
+          <Card className="shadow-card animate-fade-in">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">إدخال بيانات جديدة</CardTitle>
+              <CardDescription>
+                سعر الخدمة: {servicePrice} | عمولتك: {commissionAmount} لكل تسجيل
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {showSuccess && (
+                <div className="mb-4 p-3 rounded-lg bg-success/10 flex items-center gap-2 text-success">
+                  <CheckCircle2 className="w-5 h-5" />
+                  <span className="text-sm font-medium">تم الإرسال بنجاح!</span>
+                </div>
+              )}
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="fullName" className="text-sm font-medium">
+                      الاسم الكامل
+                    </Label>
+                    <div className="relative">
+                      <User className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        id="fullName"
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        placeholder="أدخل الاسم الكامل"
+                        className="pr-10 text-right"
+                        required
+                        maxLength={100}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phoneNumber" className="text-sm font-medium">
+                      رقم الهاتف
+                    </Label>
+                    <div className="relative">
+                      <Phone className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        id="phoneNumber"
+                        value={phoneNumber}
+                        onChange={(e) => setPhoneNumber(e.target.value)}
+                        placeholder="أدخل رقم الهاتف"
+                        className="pr-10 text-right"
+                        type="tel"
+                        required
+                        maxLength={20}
+                        dir="ltr"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  type="submit"
+                  className="w-full sm:w-auto"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? "جاري الإرسال..." : "إرسال البيانات"}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Batches Tab */}
+        {activeTab === "batches" && (
+          <div className="space-y-4 animate-fade-in">
+            {/* Create Batch */}
+            {unbatchedCount > 0 && (
+              <Card className="shadow-card border-dashed border-2 border-primary/30">
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                      <Package className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-foreground">
+                        {unbatchedCount} تسجيل غير مجمّع
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        المبلغ: {unbatchedCount * netPerSub} (صافي التوريد)
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleCreateBatch}
+                    disabled={isCreatingBatch}
+                    className="gap-2"
+                  >
+                    <Package className="w-4 h-4" />
+                    {isCreatingBatch ? "جاري الإنشاء..." : "إنشاء دفعة"}
+                  </Button>
+                </CardContent>
+              </Card>
             )}
-          </CardContent>
-        </Card>
+
+            {/* Batches List */}
+            <Card className="shadow-card">
+              <CardHeader>
+                <CardTitle className="text-lg">الدفعات</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {batches.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Package className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                    <p>لم تقم بإنشاء أي دفعات بعد</p>
+                    <p className="text-sm mt-1">أدخل بيانات ثم اجمعها في دفعة للتوريد</p>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/50">
+                          <TableHead className="text-right font-semibold">#</TableHead>
+                          <TableHead className="text-right font-semibold">عدد التسجيلات</TableHead>
+                          <TableHead className="text-right font-semibold">المبلغ الكلي</TableHead>
+                          <TableHead className="text-right font-semibold">عمولتك</TableHead>
+                          <TableHead className="text-right font-semibold">صافي التوريد</TableHead>
+                          <TableHead className="text-right font-semibold">الحالة</TableHead>
+                          <TableHead className="text-right font-semibold">التاريخ</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {batches.map((batch, index) => (
+                          <TableRow key={batch.id} className="hover:bg-muted/30 transition-colors">
+                            <TableCell className="font-medium text-muted-foreground">
+                              {index + 1}
+                            </TableCell>
+                            <TableCell className="font-bold text-primary">
+                              {batch.submissions_count}
+                            </TableCell>
+                            <TableCell>{batch.total_amount}</TableCell>
+                            <TableCell className="text-success font-semibold">
+                              {batch.commission_amount}
+                            </TableCell>
+                            <TableCell className="font-semibold">{batch.net_amount}</TableCell>
+                            <TableCell>
+                              <span
+                                className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                                  batch.is_delivered
+                                    ? "bg-success/10 text-success"
+                                    : "bg-destructive/10 text-destructive"
+                                }`}
+                              >
+                                {batch.is_delivered ? (
+                                  <span className="flex items-center gap-1">
+                                    <Check className="w-3 h-3" /> تم التوريد
+                                  </span>
+                                ) : (
+                                  <span className="flex items-center gap-1">
+                                    <X className="w-3 h-3" /> معلّق
+                                  </span>
+                                )}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground text-sm">
+                              {formatDate(batch.created_at)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* History Tab */}
+        {activeTab === "history" && (
+          <Card className="shadow-card animate-fade-in">
+            <CardHeader>
+              <CardTitle className="text-lg">
+                سجل البيانات المُدخلة ({submissions.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  جاري تحميل البيانات...
+                </div>
+              ) : submissions.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <ClipboardList className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                  <p>لم تقم بإدخال أي بيانات بعد</p>
+                </div>
+              ) : (
+                <div className="rounded-lg border overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        <TableHead className="text-right font-semibold">#</TableHead>
+                        <TableHead className="text-right font-semibold">الاسم</TableHead>
+                        <TableHead className="text-right font-semibold">رقم الهاتف</TableHead>
+                        <TableHead className="text-right font-semibold">التوريد</TableHead>
+                        <TableHead className="text-right font-semibold">التاريخ</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {submissions.map((submission, index) => (
+                        <TableRow
+                          key={submission.id}
+                          className="hover:bg-muted/30 transition-colors"
+                        >
+                          <TableCell className="font-medium text-muted-foreground">
+                            {index + 1}
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {submission.full_name}
+                          </TableCell>
+                          <TableCell dir="ltr" className="text-left">
+                            {submission.phone_number}
+                          </TableCell>
+                          <TableCell>
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                submission.is_delivered
+                                  ? "bg-success/10 text-success"
+                                  : submission.batch_id
+                                  ? "bg-amber-500/10 text-amber-600"
+                                  : "bg-destructive/10 text-destructive"
+                              }`}
+                            >
+                              {submission.is_delivered ? (
+                                <span className="flex items-center gap-1">
+                                  <Check className="w-3 h-3" /> تم
+                                </span>
+                              ) : submission.batch_id ? (
+                                <span className="flex items-center gap-1">
+                                  <Package className="w-3 h-3" /> في دفعة
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-1">
+                                  <X className="w-3 h-3" /> غير مجمّع
+                                </span>
+                              )}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-sm">
+                            {formatDate(submission.created_at)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
