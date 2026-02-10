@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     const body = await req.json();
-    const { token } = body;
+    const { token, action } = body;
 
     if (!token) {
       return new Response(
@@ -67,10 +67,91 @@ Deno.serve(async (req) => {
 
     const collectorName = payload.collector_name as string;
 
-    // Fetch submissions for this collector (include is_delivered)
+    // Handle batch creation
+    if (action === "create_batch") {
+      // Get undelivered submissions without a batch
+      const { data: unbatched, error: fetchErr } = await supabase
+        .from("submissions")
+        .select("id")
+        .eq("collector_name", collectorName)
+        .eq("is_delivered", false)
+        .is("batch_id", null);
+
+      if (fetchErr) {
+        return new Response(
+          JSON.stringify({ error: "حدث خطأ في جلب البيانات" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (!unbatched || unbatched.length === 0) {
+        return new Response(
+          JSON.stringify({ error: "لا توجد تسجيلات غير مورّدة لإنشاء دفعة" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Get current settings
+      const { data: settings } = await supabase
+        .from("system_settings")
+        .select("key, value");
+
+      const settingsMap: Record<string, string> = {};
+      (settings || []).forEach((s: { key: string; value: string }) => {
+        settingsMap[s.key] = s.value;
+      });
+
+      const svcPrice = parseFloat(settingsMap.service_price || "0");
+      const commAmount = parseFloat(settingsMap.commission_amount || "0");
+      const count = unbatched.length;
+      const totalAmt = count * svcPrice;
+      const totalComm = count * commAmount;
+      const netAmt = totalAmt - totalComm;
+
+      // Create the batch
+      const { data: batch, error: batchErr } = await supabase
+        .from("batches")
+        .insert({
+          collector_name: collectorName,
+          submissions_count: count,
+          total_amount: totalAmt,
+          commission_amount: totalComm,
+          net_amount: netAmt,
+        })
+        .select("id")
+        .single();
+
+      if (batchErr || !batch) {
+        return new Response(
+          JSON.stringify({ error: "حدث خطأ في إنشاء الدفعة" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Link submissions to batch
+      const ids = unbatched.map((s: { id: string }) => s.id);
+      const { error: updateErr } = await supabase
+        .from("submissions")
+        .update({ batch_id: batch.id })
+        .in("id", ids);
+
+      if (updateErr) {
+        return new Response(
+          JSON.stringify({ error: "حدث خطأ في ربط التسجيلات بالدفعة" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, batch_id: batch.id, count }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Default: fetch data
     const { data: submissions, error } = await supabase
       .from("submissions")
-      .select("id, full_name, phone_number, created_at, is_delivered")
+      .select("id, full_name, phone_number, created_at, is_delivered, batch_id")
       .eq("collector_name", collectorName)
       .order("created_at", { ascending: false });
 
@@ -80,6 +161,13 @@ Deno.serve(async (req) => {
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Fetch batches for this collector
+    const { data: batches } = await supabase
+      .from("batches")
+      .select("*")
+      .eq("collector_name", collectorName)
+      .order("created_at", { ascending: false });
 
     // Fetch system settings
     const { data: settings } = await supabase
@@ -95,6 +183,7 @@ Deno.serve(async (req) => {
       JSON.stringify({
         collector_name: collectorName,
         submissions: submissions || [],
+        batches: batches || [],
         total: (submissions || []).length,
         service_price: parseFloat(settingsMap.service_price || "0"),
         commission_amount: parseFloat(settingsMap.commission_amount || "0"),

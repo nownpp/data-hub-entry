@@ -22,6 +22,7 @@ import {
   Lock,
   Check,
   X,
+  Package,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import SettingsCard from "@/components/admin/SettingsCard";
@@ -35,6 +36,7 @@ interface Submission {
   created_at: string;
   collector_name: string | null;
   is_delivered: boolean;
+  batch_id: string | null;
 }
 
 interface Collector {
@@ -44,13 +46,26 @@ interface Collector {
   created_at: string;
 }
 
+interface Batch {
+  id: string;
+  collector_name: string;
+  is_delivered: boolean;
+  submissions_count: number;
+  total_amount: number;
+  commission_amount: number;
+  net_amount: number;
+  created_at: string;
+  delivered_at: string | null;
+}
+
 const AdminDashboard = () => {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [collectors, setCollectors] = useState<Collector[]>([]);
+  const [batches, setBatches] = useState<Batch[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [newCollectorName, setNewCollectorName] = useState("");
   const [newCollectorPassword, setNewCollectorPassword] = useState("");
-  const [activeTab, setActiveTab] = useState<"submissions" | "collectors" | "finance">("submissions");
+  const [activeTab, setActiveTab] = useState<"submissions" | "batches" | "collectors" | "finance">("submissions");
   const [filterCollector, setFilterCollector] = useState<string | null>(null);
   const [servicePrice, setServicePrice] = useState(0);
   const [commissionAmount, setCommissionAmount] = useState(0);
@@ -85,6 +100,19 @@ const AdminDashboard = () => {
     setCollectors(data || []);
   };
 
+  const fetchBatches = async () => {
+    const { data, error } = await supabase
+      .from("batches")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      toast.error("حدث خطأ في تحميل الدفعات");
+      return;
+    }
+    setBatches(data || []);
+  };
+
   const fetchSettings = async () => {
     const { data } = await supabase
       .from("system_settings")
@@ -99,7 +127,7 @@ const AdminDashboard = () => {
   };
 
   const fetchAll = async () => {
-    await Promise.all([fetchSubmissions(), fetchCollectors(), fetchSettings()]);
+    await Promise.all([fetchSubmissions(), fetchCollectors(), fetchBatches(), fetchSettings()]);
   };
 
   const handleDeleteSubmission = async (id: string) => {
@@ -112,21 +140,36 @@ const AdminDashboard = () => {
     setSubmissions((prev) => prev.filter((s) => s.id !== id));
   };
 
-  const handleToggleDelivery = async (id: string, currentStatus: boolean) => {
-    const { error } = await supabase
-      .from("submissions")
-      .update({ is_delivered: !currentStatus })
-      .eq("id", id);
+  const handleToggleBatchDelivery = async (batch: Batch) => {
+    const newStatus = !batch.is_delivered;
 
-    if (error) {
-      toast.error("حدث خطأ");
+    // Update batch
+    const { error: batchErr } = await supabase
+      .from("batches")
+      .update({
+        is_delivered: newStatus,
+        delivered_at: newStatus ? new Date().toISOString() : null,
+      })
+      .eq("id", batch.id);
+
+    if (batchErr) {
+      toast.error("حدث خطأ في تحديث الدفعة");
       return;
     }
 
-    setSubmissions((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, is_delivered: !currentStatus } : s))
-    );
-    toast.success(!currentStatus ? "تم تأكيد التوريد" : "تم إلغاء التوريد");
+    // Update all submissions in this batch
+    const { error: subErr } = await supabase
+      .from("submissions")
+      .update({ is_delivered: newStatus })
+      .eq("batch_id", batch.id);
+
+    if (subErr) {
+      toast.error("حدث خطأ في تحديث التسجيلات");
+      return;
+    }
+
+    toast.success(newStatus ? "تم تأكيد توريد الدفعة" : "تم إلغاء توريد الدفعة");
+    fetchAll();
   };
 
   const handleAddCollector = async () => {
@@ -236,6 +279,10 @@ const AdminDashboard = () => {
   const deliveredCount = submissions.filter((s) => s.is_delivered).length;
   const undeliveredCount = submissions.length - deliveredCount;
 
+  const filteredBatches = filterCollector
+    ? batches.filter((b) => b.collector_name === filterCollector)
+    : batches;
+
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -276,6 +323,7 @@ const AdminDashboard = () => {
           {(
             [
               { key: "submissions", label: "البيانات المسجلة" },
+              { key: "batches", label: `الدفعات (${batches.length})` },
               { key: "finance", label: "المالية" },
               { key: "collectors", label: "إدارة المُدخلين" },
             ] as const
@@ -284,7 +332,7 @@ const AdminDashboard = () => {
               key={tab.key}
               onClick={() => {
                 setActiveTab(tab.key);
-                if (tab.key !== "submissions") setFilterCollector(null);
+                if (tab.key !== "submissions" && tab.key !== "batches") setFilterCollector(null);
               }}
               className={`px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors whitespace-nowrap ${
                 activeTab === tab.key
@@ -385,13 +433,12 @@ const AdminDashboard = () => {
                               )}
                             </TableCell>
                             <TableCell>
-                              <button
-                                onClick={() =>
-                                  handleToggleDelivery(submission.id, submission.is_delivered)
-                                }
-                                className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                              <span
+                                className={`px-2.5 py-1 rounded-full text-xs font-medium ${
                                   submission.is_delivered
                                     ? "bg-success/10 text-success"
+                                    : submission.batch_id
+                                    ? "bg-amber-500/10 text-amber-600"
                                     : "bg-destructive/10 text-destructive"
                                 }`}
                               >
@@ -399,12 +446,16 @@ const AdminDashboard = () => {
                                   <span className="flex items-center gap-1">
                                     <Check className="w-3 h-3" /> تم التوريد
                                   </span>
+                                ) : submission.batch_id ? (
+                                  <span className="flex items-center gap-1">
+                                    <Package className="w-3 h-3" /> في دفعة
+                                  </span>
                                 ) : (
                                   <span className="flex items-center gap-1">
-                                    <X className="w-3 h-3" /> معلّق
+                                    <X className="w-3 h-3" /> غير مجمّع
                                   </span>
                                 )}
-                              </button>
+                              </span>
                             </TableCell>
                             <TableCell className="text-muted-foreground text-sm">
                               {formatDate(submission.created_at)}
@@ -418,6 +469,124 @@ const AdminDashboard = () => {
                               >
                                 <Trash2 className="w-4 h-4" />
                               </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Batches Tab */}
+        {activeTab === "batches" && (
+          <div className="space-y-4 animate-fade-in">
+            {collectorStats.length > 0 && (
+              <Card className="shadow-card">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">فلترة حسب المُدخل</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => setFilterCollector(null)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                        !filterCollector
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                      }`}
+                    >
+                      الكل ({batches.length})
+                    </button>
+                    {collectorStats.map((stat) => {
+                      const bCount = batches.filter((b) => b.collector_name === stat.name).length;
+                      return (
+                        <button
+                          key={stat.name}
+                          onClick={() => setFilterCollector(stat.name)}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                            filterCollector === stat.name
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                          }`}
+                        >
+                          {stat.name} ({bCount})
+                        </button>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            <Card className="shadow-card">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Package className="w-5 h-5 text-primary" />
+                  الدفعات ({filteredBatches.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {filteredBatches.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Package className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                    <p>لا توجد دفعات بعد</p>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/50">
+                          <TableHead className="text-right font-semibold">#</TableHead>
+                          <TableHead className="text-right font-semibold">المُدخل</TableHead>
+                          <TableHead className="text-right font-semibold">عدد التسجيلات</TableHead>
+                          <TableHead className="text-right font-semibold">المبلغ الكلي</TableHead>
+                          <TableHead className="text-right font-semibold">العمولة</TableHead>
+                          <TableHead className="text-right font-semibold">صافي التوريد</TableHead>
+                          <TableHead className="text-right font-semibold">الحالة</TableHead>
+                          <TableHead className="text-right font-semibold">التاريخ</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredBatches.map((batch, index) => (
+                          <TableRow key={batch.id} className="hover:bg-muted/30 transition-colors">
+                            <TableCell className="font-medium text-muted-foreground">
+                              {index + 1}
+                            </TableCell>
+                            <TableCell className="font-medium">{batch.collector_name}</TableCell>
+                            <TableCell className="font-bold text-primary">
+                              {batch.submissions_count}
+                            </TableCell>
+                            <TableCell>{batch.total_amount}</TableCell>
+                            <TableCell className="text-success font-semibold">
+                              {batch.commission_amount}
+                            </TableCell>
+                            <TableCell className="font-semibold">{batch.net_amount}</TableCell>
+                            <TableCell>
+                              <button
+                                onClick={() => handleToggleBatchDelivery(batch)}
+                                className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                                  batch.is_delivered
+                                    ? "bg-success/10 text-success"
+                                    : "bg-destructive/10 text-destructive"
+                                }`}
+                              >
+                                {batch.is_delivered ? (
+                                  <span className="flex items-center gap-1">
+                                    <Check className="w-3 h-3" /> تم التوريد
+                                  </span>
+                                ) : (
+                                  <span className="flex items-center gap-1">
+                                    <X className="w-3 h-3" /> معلّق
+                                  </span>
+                                )}
+                              </button>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground text-sm">
+                              {formatDate(batch.created_at)}
                             </TableCell>
                           </TableRow>
                         ))}
