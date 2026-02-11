@@ -155,7 +155,7 @@ const SubmissionForm = () => {
     <div className="min-h-screen flex items-center justify-center p-4 gradient-hero relative">
       <div className="absolute top-4 left-4 flex items-center gap-3">
         <Link
-          to="/collector"
+          to="/"
           className="text-primary-foreground/60 hover:text-primary-foreground transition-colors text-sm flex items-center gap-1"
         >
           <ClipboardList className="w-4 h-4" />
