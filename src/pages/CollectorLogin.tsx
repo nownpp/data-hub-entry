@@ -46,10 +46,10 @@ const CollectorLogin = () => {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 gradient-hero relative">
       <Link
-        to="/"
+        to="/submit"
         className="absolute top-4 right-4 text-primary-foreground/60 hover:text-primary-foreground transition-colors text-sm"
       >
-        الصفحة الرئيسية
+        صفحة التسجيل
       </Link>
 
       <Card className="w-full max-w-md shadow-glow animate-fade-up border-0">
