@@ -1,16 +1,19 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { toast } from "sonner";
 import { User, Lock, ClipboardList } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
 
 const CollectorLogin = () => {
-  const [name, setName] = useState("");
-  const [password, setPassword] = useState("");
+  const saved = JSON.parse(localStorage.getItem("collector_remember") || "null");
+  const [name, setName] = useState(saved?.name || "");
+  const [password, setPassword] = useState(saved?.password || "");
+  const [rememberMe, setRememberMe] = useState(!!saved);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -38,6 +41,12 @@ const CollectorLogin = () => {
     sessionStorage.setItem("collector_token", data.token);
     sessionStorage.setItem("collector_name", data.collector.name);
     sessionStorage.setItem("collector_id", data.collector.id);
+
+    if (rememberMe) {
+      localStorage.setItem("collector_remember", JSON.stringify({ name: name.trim(), password }));
+    } else {
+      localStorage.removeItem("collector_remember");
+    }
 
     toast.success("تم تسجيل الدخول بنجاح");
     navigate("/collector/dashboard");
@@ -99,6 +108,20 @@ const CollectorLogin = () => {
                   dir="ltr"
                 />
               </div>
+            </div>
+
+            <div className="flex items-center gap-2 justify-end">
+              <Label htmlFor="rememberMe" className="text-sm text-muted-foreground cursor-pointer">
+                تذكرني
+              </Label>
+              <Checkbox
+                id="rememberMe"
+                checked={rememberMe}
+                onCheckedChange={(checked) => {
+                  setRememberMe(!!checked);
+                  if (!checked) localStorage.removeItem("collector_remember");
+                }}
+              />
             </div>
 
             <Button
