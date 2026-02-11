@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { toast } from "sonner";
 import { User, Phone, CheckCircle2, ClipboardList, BarChart3, Lock } from "lucide-react";
@@ -15,8 +16,10 @@ const submissionSchema = z.object({
 });
 
 const SubmissionForm = () => {
-  const [fullName, setFullName] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
+  const saved = JSON.parse(localStorage.getItem("rememberMe") || "null");
+  const [fullName, setFullName] = useState(saved?.fullName || "");
+  const [phoneNumber, setPhoneNumber] = useState(saved?.phoneNumber || "");
+  const [rememberMe, setRememberMe] = useState(!!saved);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [myCount, setMyCount] = useState(0);
@@ -83,6 +86,12 @@ const SubmissionForm = () => {
     if (error) {
       toast.error("حدث خطأ أثناء الإرسال. حاول مرة أخرى.");
       return;
+    }
+
+    if (rememberMe) {
+      localStorage.setItem("rememberMe", JSON.stringify({ fullName: validation.data.full_name, phoneNumber: validation.data.phone_number }));
+    } else {
+      localStorage.removeItem("rememberMe");
     }
 
     setIsSuccess(true);
@@ -221,6 +230,20 @@ const SubmissionForm = () => {
                   dir="ltr"
                 />
               </div>
+            </div>
+
+            <div className="flex items-center gap-2 justify-end">
+              <Label htmlFor="rememberMe" className="text-sm text-muted-foreground cursor-pointer">
+                تذكرني
+              </Label>
+              <Checkbox
+                id="rememberMe"
+                checked={rememberMe}
+                onCheckedChange={(checked) => {
+                  setRememberMe(!!checked);
+                  if (!checked) localStorage.removeItem("rememberMe");
+                }}
+              />
             </div>
 
             <Button
