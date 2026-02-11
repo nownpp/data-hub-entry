@@ -27,6 +27,7 @@ import {
   Check,
   X,
   Package,
+  Copy,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { z } from "zod";
@@ -522,11 +523,32 @@ const CollectorDashboard = () => {
                           <TableCell className="font-medium text-muted-foreground">
                             {index + 1}
                           </TableCell>
-                          <TableCell className="font-medium">
-                            {submission.full_name}
+                          <TableCell
+                            className="font-medium cursor-pointer hover:text-primary transition-colors"
+                            onClick={() => {
+                              navigator.clipboard.writeText(submission.full_name);
+                              toast.success("تم نسخ الاسم");
+                            }}
+                            title="انقر للنسخ"
+                          >
+                            <span className="flex items-center gap-1">
+                              {submission.full_name}
+                              <Copy className="w-3 h-3 opacity-30" />
+                            </span>
                           </TableCell>
-                          <TableCell dir="ltr" className="text-left">
-                            {submission.phone_number}
+                          <TableCell
+                            dir="ltr"
+                            className="text-left cursor-pointer hover:text-primary transition-colors"
+                            onClick={() => {
+                              navigator.clipboard.writeText(submission.phone_number);
+                              toast.success("تم نسخ رقم الهاتف");
+                            }}
+                            title="انقر للنسخ"
+                          >
+                            <span className="flex items-center gap-1">
+                              {submission.phone_number}
+                              <Copy className="w-3 h-3 opacity-30" />
+                            </span>
                           </TableCell>
                           <TableCell>
                             <span
