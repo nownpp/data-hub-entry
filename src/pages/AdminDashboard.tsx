@@ -23,6 +23,7 @@ import {
   Check,
   X,
   Package,
+  CheckCircle2,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import SettingsCard from "@/components/admin/SettingsCard";
@@ -37,6 +38,7 @@ interface Submission {
   collector_name: string | null;
   is_delivered: boolean;
   batch_id: string | null;
+  is_research_completed: boolean;
 }
 
 interface Collector {
@@ -67,6 +69,7 @@ const AdminDashboard = () => {
   const [newCollectorPassword, setNewCollectorPassword] = useState("");
   const [activeTab, setActiveTab] = useState<"submissions" | "batches" | "collectors" | "finance">("submissions");
   const [filterCollector, setFilterCollector] = useState<string | null>(null);
+  const [submissionFilter, setSubmissionFilter] = useState<"active" | "completed">("active");
   const [servicePrice, setServicePrice] = useState(0);
   const [commissionAmount, setCommissionAmount] = useState(0);
   const navigate = useNavigate();
@@ -138,6 +141,22 @@ const AdminDashboard = () => {
     }
     toast.success("تم حذف السجل بنجاح");
     setSubmissions((prev) => prev.filter((s) => s.id !== id));
+  };
+
+  const handleToggleResearch = async (id: string, currentStatus: boolean) => {
+    const newStatus = !currentStatus;
+    const { error } = await supabase
+      .from("submissions")
+      .update({ is_research_completed: newStatus } as any)
+      .eq("id", id);
+    if (error) {
+      toast.error("حدث خطأ في تحديث الحالة");
+      return;
+    }
+    toast.success(newStatus ? "تم تعليم البحث كمكتمل" : "تم إلغاء اكتمال البحث");
+    setSubmissions((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, is_research_completed: newStatus } : s))
+    );
   };
 
   const handleToggleBatchDelivery = async (batch: Batch) => {
@@ -272,10 +291,12 @@ const AdminDashboard = () => {
     }))
     .sort((a, b) => b.count - a.count);
 
-  const filteredSubmissions = filterCollector
-    ? submissions.filter((s) => s.collector_name === filterCollector)
-    : submissions;
+  const filteredSubmissions = submissions
+    .filter((s) => !filterCollector || s.collector_name === filterCollector)
+    .filter((s) => submissionFilter === "completed" ? s.is_research_completed : !s.is_research_completed);
 
+  const activeCount = submissions.filter((s) => !s.is_research_completed && (!filterCollector || s.collector_name === filterCollector)).length;
+  const completedCount = submissions.filter((s) => s.is_research_completed && (!filterCollector || s.collector_name === filterCollector)).length;
   const deliveredCount = submissions.filter((s) => s.is_delivered).length;
   const undeliveredCount = submissions.length - deliveredCount;
 
@@ -383,10 +404,37 @@ const AdminDashboard = () => {
               </Card>
             )}
 
+            {/* Active/Completed sub-filter */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => setSubmissionFilter("active")}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  submissionFilter === "active"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                }`}
+              >
+                قيد البحث ({activeCount})
+              </button>
+              <button
+                onClick={() => setSubmissionFilter("completed")}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  submissionFilter === "completed"
+                    ? "bg-success text-white"
+                    : "bg-success/10 text-success hover:bg-success/20"
+                }`}
+              >
+                <span className="flex items-center gap-1">
+                  <CheckCircle2 className="w-4 h-4" />
+                  مكتمل ({completedCount})
+                </span>
+              </button>
+            </div>
+
             <Card className="shadow-card">
               <CardHeader>
                 <CardTitle className="text-lg">
-                  {filterCollector ? `بيانات: ${filterCollector}` : "جميع البيانات المسجلة"}
+                  {filterCollector ? `بيانات: ${filterCollector}` : "جميع البيانات المسجلة"} — {submissionFilter === "completed" ? "مكتمل البحث" : "قيد البحث"}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -484,14 +532,28 @@ const AdminDashboard = () => {
                               {formatDate(submission.created_at)}
                             </TableCell>
                             <TableCell>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleDeleteSubmission(submission.id)}
-                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleToggleResearch(submission.id, submission.is_research_completed)}
+                                  className={submission.is_research_completed
+                                    ? "text-success hover:text-success hover:bg-success/10"
+                                    : "text-muted-foreground hover:text-success hover:bg-success/10"
+                                  }
+                                  title={submission.is_research_completed ? "إلغاء اكتمال البحث" : "تعليم كمكتمل"}
+                                >
+                                  <CheckCircle2 className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleDeleteSubmission(submission.id)}
+                                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}
