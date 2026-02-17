@@ -82,6 +82,7 @@ export type Database = {
           full_name: string
           id: string
           is_delivered: boolean
+          is_research_completed: boolean
           phone_number: string
         }
         Insert: {
@@ -91,6 +92,7 @@ export type Database = {
           full_name: string
           id?: string
           is_delivered?: boolean
+          is_research_completed?: boolean
           phone_number: string
         }
         Update: {
@@ -100,6 +102,7 @@ export type Database = {
           full_name?: string
           id?: string
           is_delivered?: boolean
+          is_research_completed?: boolean
           phone_number?: string
         }
         Relationships: [

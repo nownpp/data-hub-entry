@@ -53,6 +53,7 @@ interface Submission {
   created_at: string;
   is_delivered: boolean;
   batch_id: string | null;
+  is_research_completed: boolean;
 }
 
 interface Batch {
@@ -79,6 +80,7 @@ const CollectorDashboard = () => {
   const [commissionAmount, setCommissionAmount] = useState(0);
   const [isCreatingBatch, setIsCreatingBatch] = useState(false);
   const [activeTab, setActiveTab] = useState<"form" | "batches" | "history">("form");
+  const [historyFilter, setHistoryFilter] = useState<"active" | "completed">("active");
   const navigate = useNavigate();
 
   const collectorName = sessionStorage.getItem("collector_name");
@@ -486,23 +488,51 @@ const CollectorDashboard = () => {
 
         {/* History Tab */}
         {activeTab === "history" && (
-          <Card className="shadow-card animate-fade-in">
-            <CardHeader>
-              <CardTitle className="text-lg">
-                سجل البيانات المُدخلة ({submissions.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  جاري تحميل البيانات...
-                </div>
-              ) : submissions.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <ClipboardList className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                  <p>لم تقم بإدخال أي بيانات بعد</p>
-                </div>
-              ) : (
+          <div className="space-y-4 animate-fade-in">
+            {/* Active/Completed sub-filter */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => setHistoryFilter("active")}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  historyFilter === "active"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                }`}
+              >
+                قيد البحث ({submissions.filter((s) => !s.is_research_completed).length})
+              </button>
+              <button
+                onClick={() => setHistoryFilter("completed")}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  historyFilter === "completed"
+                    ? "bg-success text-white"
+                    : "bg-success/10 text-success hover:bg-success/20"
+                }`}
+              >
+                <span className="flex items-center gap-1">
+                  <CheckCircle2 className="w-4 h-4" />
+                  مكتمل ({submissions.filter((s) => s.is_research_completed).length})
+                </span>
+              </button>
+            </div>
+
+            <Card className="shadow-card">
+              <CardHeader>
+                <CardTitle className="text-lg">
+                  سجل البيانات المُدخلة — {historyFilter === "completed" ? "مكتمل البحث" : "قيد البحث"}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isLoading ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    جاري تحميل البيانات...
+                  </div>
+                ) : submissions.filter((s) => historyFilter === "completed" ? s.is_research_completed : !s.is_research_completed).length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <ClipboardList className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                    <p>{historyFilter === "completed" ? "لا توجد بيانات مكتملة البحث" : "لم تقم بإدخال أي بيانات بعد"}</p>
+                  </div>
+                ) : (
                 <div className="rounded-lg border overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -515,16 +545,18 @@ const CollectorDashboard = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {submissions.map((submission, index) => (
+                      {submissions
+                        .filter((s) => historyFilter === "completed" ? s.is_research_completed : !s.is_research_completed)
+                        .map((submission, index) => (
                         <TableRow
                           key={submission.id}
-                          className="hover:bg-muted/30 transition-colors"
+                          className={`hover:bg-muted/30 transition-colors ${submission.is_research_completed ? "bg-success/5" : ""}`}
                         >
                           <TableCell className="font-medium text-muted-foreground">
                             {index + 1}
                           </TableCell>
                           <TableCell
-                            className="font-medium cursor-pointer hover:text-primary transition-colors"
+                            className={`font-medium cursor-pointer transition-colors ${submission.is_research_completed ? "text-success hover:text-success/80" : "hover:text-primary"}`}
                             onClick={() => {
                               navigator.clipboard.writeText(submission.full_name);
                               toast.success("تم نسخ الاسم");
@@ -532,6 +564,7 @@ const CollectorDashboard = () => {
                             title="انقر للنسخ"
                           >
                             <span className="flex items-center gap-1">
+                              {submission.is_research_completed && <CheckCircle2 className="w-3.5 h-3.5 text-success" />}
                               {submission.full_name}
                               <Copy className="w-3 h-3 opacity-30" />
                             </span>
@@ -586,6 +619,7 @@ const CollectorDashboard = () => {
               )}
             </CardContent>
           </Card>
+          </div>
         )}
       </div>
     </div>
