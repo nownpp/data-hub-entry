@@ -67,56 +67,25 @@ Deno.serve(async (req) => {
 
     const collectorName = payload.collector_name as string;
 
-    // Handle batch creation
+    // Handle batch creation with amount
     if (action === "create_batch") {
-      // Get undelivered submissions without a batch
-      const { data: unbatched, error: fetchErr } = await supabase
-        .from("submissions")
-        .select("id")
-        .eq("collector_name", collectorName)
-        .eq("is_delivered", false)
-        .is("batch_id", null);
-
-      if (fetchErr) {
+      const amount = parseFloat(body.amount);
+      if (!amount || amount <= 0) {
         return new Response(
-          JSON.stringify({ error: "حدث خطأ في جلب البيانات" }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      if (!unbatched || unbatched.length === 0) {
-        return new Response(
-          JSON.stringify({ error: "لا توجد تسجيلات غير مورّدة لإنشاء دفعة" }),
+          JSON.stringify({ error: "يرجى إدخال مبلغ صحيح" }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      // Get current settings
-      const { data: settings } = await supabase
-        .from("system_settings")
-        .select("key, value");
-
-      const settingsMap: Record<string, string> = {};
-      (settings || []).forEach((s: { key: string; value: string }) => {
-        settingsMap[s.key] = s.value;
-      });
-
-      const svcPrice = parseFloat(settingsMap.service_price || "0");
-      const commAmount = parseFloat(settingsMap.commission_amount || "0");
-      const count = unbatched.length;
-      const totalAmt = count * svcPrice;
-      const totalComm = count * commAmount;
-      const netAmt = totalAmt - totalComm;
-
-      // Create the batch
+      // Create the batch with the entered amount as net_amount
       const { data: batch, error: batchErr } = await supabase
         .from("batches")
         .insert({
           collector_name: collectorName,
-          submissions_count: count,
-          total_amount: totalAmt,
-          commission_amount: totalComm,
-          net_amount: netAmt,
+          submissions_count: 0,
+          total_amount: amount,
+          commission_amount: 0,
+          net_amount: amount,
         })
         .select("id")
         .single();
@@ -128,22 +97,8 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Link submissions to batch
-      const ids = unbatched.map((s: { id: string }) => s.id);
-      const { error: updateErr } = await supabase
-        .from("submissions")
-        .update({ batch_id: batch.id })
-        .in("id", ids);
-
-      if (updateErr) {
-        return new Response(
-          JSON.stringify({ error: "حدث خطأ في ربط التسجيلات بالدفعة" }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
       return new Response(
-        JSON.stringify({ success: true, batch_id: batch.id, count }),
+        JSON.stringify({ success: true, batch_id: batch.id }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -151,7 +106,7 @@ Deno.serve(async (req) => {
     // Default: fetch data
     const { data: submissions, error } = await supabase
       .from("submissions")
-      .select("id, full_name, phone_number, created_at, is_delivered, batch_id")
+      .select("id, full_name, phone_number, created_at, is_delivered, batch_id, is_research_completed")
       .eq("collector_name", collectorName)
       .order("created_at", { ascending: false });
 

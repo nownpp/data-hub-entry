@@ -79,6 +79,7 @@ const CollectorDashboard = () => {
   const [servicePrice, setServicePrice] = useState(0);
   const [commissionAmount, setCommissionAmount] = useState(0);
   const [isCreatingBatch, setIsCreatingBatch] = useState(false);
+  const [batchAmount, setBatchAmount] = useState("");
   const [activeTab, setActiveTab] = useState<"form" | "batches" | "history">("form");
   const [historyFilter, setHistoryFilter] = useState<"active" | "completed">("active");
   const navigate = useNavigate();
@@ -164,10 +165,15 @@ const CollectorDashboard = () => {
 
   const handleCreateBatch = async () => {
     if (!collectorToken) return;
+    const amount = parseFloat(batchAmount);
+    if (!amount || amount <= 0) {
+      toast.error("يرجى إدخال مبلغ صحيح");
+      return;
+    }
     setIsCreatingBatch(true);
 
     const { data, error } = await supabase.functions.invoke("collector-data", {
-      body: { token: collectorToken, action: "create_batch" },
+      body: { token: collectorToken, action: "create_batch", amount },
     });
 
     setIsCreatingBatch(false);
@@ -177,7 +183,8 @@ const CollectorDashboard = () => {
       return;
     }
 
-    toast.success(`تم إنشاء دفعة بـ ${data.count} تسجيل`);
+    toast.success("تم إنشاء الدفعة بنجاح");
+    setBatchAmount("");
     fetchSubmissions();
   };
 
@@ -196,9 +203,10 @@ const CollectorDashboard = () => {
   const totalCommission = totalCount * commissionAmount;
   const netPerSub = servicePrice - commissionAmount;
   const totalToDeliver = totalCount * netPerSub;
-  const unbatchedCount = submissions.filter((s) => !s.is_delivered && !s.batch_id).length;
+  const totalDelivered = batches.filter((b) => b.is_delivered).reduce((sum, b) => sum + Number(b.net_amount), 0);
   const pendingBatches = batches.filter((b) => !b.is_delivered);
   const pendingAmount = pendingBatches.reduce((sum, b) => sum + Number(b.net_amount), 0);
+  const remainingToDeliver = totalToDeliver - totalDelivered - pendingAmount;
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
@@ -384,34 +392,38 @@ const CollectorDashboard = () => {
         {/* Batches Tab */}
         {activeTab === "batches" && (
           <div className="space-y-4 animate-fade-in">
-            {/* Create Batch */}
-            {unbatchedCount > 0 && (
-              <Card className="shadow-card border-dashed border-2 border-primary/30">
-                <CardContent className="p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
+            {/* Create Batch with Amount */}
+            <Card className="shadow-card border-dashed border-2 border-primary/30">
+              <CardContent className="p-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                  <div className="flex items-center gap-3 shrink-0">
                     <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
                       <Package className="w-5 h-5 text-primary" />
                     </div>
-                    <div>
-                      <p className="font-semibold text-foreground">
-                        {unbatchedCount} تسجيل غير مجمّع
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        المبلغ: {unbatchedCount * netPerSub} (صافي التوريد)
-                      </p>
-                    </div>
+                    <p className="font-semibold text-foreground">إنشاء دفعة توريد</p>
                   </div>
-                  <Button
-                    onClick={handleCreateBatch}
-                    disabled={isCreatingBatch}
-                    className="gap-2"
-                  >
-                    <Package className="w-4 h-4" />
-                    {isCreatingBatch ? "جاري الإنشاء..." : "إنشاء دفعة"}
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <Input
+                      type="number"
+                      value={batchAmount}
+                      onChange={(e) => setBatchAmount(e.target.value)}
+                      placeholder="أدخل المبلغ"
+                      className="text-right w-full sm:w-40"
+                      min="1"
+                      dir="ltr"
+                    />
+                    <Button
+                      onClick={handleCreateBatch}
+                      disabled={isCreatingBatch || !batchAmount}
+                      className="gap-2 shrink-0"
+                    >
+                      <Banknote className="w-4 h-4" />
+                      {isCreatingBatch ? "جاري..." : "إنشاء"}
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
             {/* Batches List */}
             <Card className="shadow-card">
@@ -431,10 +443,7 @@ const CollectorDashboard = () => {
                       <TableHeader>
                         <TableRow className="bg-muted/50">
                           <TableHead className="text-right font-semibold">#</TableHead>
-                          <TableHead className="text-right font-semibold">عدد التسجيلات</TableHead>
-                          <TableHead className="text-right font-semibold">المبلغ الكلي</TableHead>
-                          <TableHead className="text-right font-semibold">عمولتك</TableHead>
-                          <TableHead className="text-right font-semibold">صافي التوريد</TableHead>
+                          <TableHead className="text-right font-semibold">المبلغ</TableHead>
                           <TableHead className="text-right font-semibold">الحالة</TableHead>
                           <TableHead className="text-right font-semibold">التاريخ</TableHead>
                         </TableRow>
@@ -446,13 +455,8 @@ const CollectorDashboard = () => {
                               {index + 1}
                             </TableCell>
                             <TableCell className="font-bold text-primary">
-                              {batch.submissions_count}
+                              {batch.net_amount}
                             </TableCell>
-                            <TableCell>{batch.total_amount}</TableCell>
-                            <TableCell className="text-success font-semibold">
-                              {batch.commission_amount}
-                            </TableCell>
-                            <TableCell className="font-semibold">{batch.net_amount}</TableCell>
                             <TableCell>
                               <span
                                 className={`px-2.5 py-1 rounded-full text-xs font-medium ${

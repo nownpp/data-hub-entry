@@ -627,10 +627,7 @@ const AdminDashboard = () => {
                         <TableRow className="bg-muted/50">
                           <TableHead className="text-right font-semibold">#</TableHead>
                           <TableHead className="text-right font-semibold">المُدخل</TableHead>
-                          <TableHead className="text-right font-semibold">عدد التسجيلات</TableHead>
-                          <TableHead className="text-right font-semibold">المبلغ الكلي</TableHead>
-                          <TableHead className="text-right font-semibold">العمولة</TableHead>
-                          <TableHead className="text-right font-semibold">صافي التوريد</TableHead>
+                          <TableHead className="text-right font-semibold">المبلغ</TableHead>
                           <TableHead className="text-right font-semibold">الحالة</TableHead>
                           <TableHead className="text-right font-semibold">التاريخ</TableHead>
                         </TableRow>
@@ -643,13 +640,8 @@ const AdminDashboard = () => {
                             </TableCell>
                             <TableCell className="font-medium">{batch.collector_name}</TableCell>
                             <TableCell className="font-bold text-primary">
-                              {batch.submissions_count}
+                              {batch.net_amount}
                             </TableCell>
-                            <TableCell>{batch.total_amount}</TableCell>
-                            <TableCell className="text-success font-semibold">
-                              {batch.commission_amount}
-                            </TableCell>
-                            <TableCell className="font-semibold">{batch.net_amount}</TableCell>
                             <TableCell>
                               <button
                                 onClick={() => handleToggleBatchDelivery(batch)}
