@@ -77,7 +77,6 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Create the batch with the entered amount as net_amount
       const { data: batch, error: batchErr } = await supabase
         .from("batches")
         .insert({
@@ -106,7 +105,7 @@ Deno.serve(async (req) => {
     // Default: fetch data
     const { data: submissions, error } = await supabase
       .from("submissions")
-      .select("id, full_name, phone_number, created_at, is_delivered, batch_id, is_research_completed")
+      .select("id, full_name, phone_number, created_at, is_delivered, batch_id, is_research_completed, subject_name")
       .eq("collector_name", collectorName)
       .order("created_at", { ascending: false });
 
@@ -134,11 +133,19 @@ Deno.serve(async (req) => {
       settingsMap[s.key] = s.value;
     });
 
+    // Fetch active subjects
+    const { data: subjects } = await supabase
+      .from("subjects")
+      .select("id, name, service_price, commission_amount")
+      .eq("is_active", true)
+      .order("created_at", { ascending: false });
+
     return new Response(
       JSON.stringify({
         collector_name: collectorName,
         submissions: submissions || [],
         batches: batches || [],
+        subjects: subjects || [],
         total: (submissions || []).length,
         service_price: parseFloat(settingsMap.service_price || "0"),
         commission_amount: parseFloat(settingsMap.commission_amount || "0"),

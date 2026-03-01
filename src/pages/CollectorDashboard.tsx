@@ -28,6 +28,7 @@ import {
   X,
   Package,
   Copy,
+  BookOpen,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { z } from "zod";
@@ -54,6 +55,7 @@ interface Submission {
   is_delivered: boolean;
   batch_id: string | null;
   is_research_completed: boolean;
+  subject_name: string | null;
 }
 
 interface Batch {
@@ -68,12 +70,21 @@ interface Batch {
   delivered_at: string | null;
 }
 
+interface Subject {
+  id: string;
+  name: string;
+  service_price: number;
+  commission_amount: number;
+}
+
 const CollectorDashboard = () => {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [fullName, setFullName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [servicePrice, setServicePrice] = useState(0);
@@ -108,6 +119,7 @@ const CollectorDashboard = () => {
 
     setSubmissions(data.submissions || []);
     setBatches(data.batches || []);
+    setSubjects(data.subjects || []);
     setServicePrice(data.service_price || 0);
     setCommissionAmount(data.commission_amount || 0);
     setIsLoading(false);
@@ -128,6 +140,8 @@ const CollectorDashboard = () => {
     navigate("/collector");
   };
 
+  const selectedSubject = subjects.find((s) => s.id === selectedSubjectId);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -141,12 +155,24 @@ const CollectorDashboard = () => {
       return;
     }
 
+    if (subjects.length > 0 && !selectedSubjectId) {
+      toast.error("يرجى اختيار المادة");
+      return;
+    }
+
     setIsSubmitting(true);
-    const { error } = await supabase.from("submissions").insert({
+    const insertData: any = {
       full_name: validation.data.full_name,
       phone_number: validation.data.phone_number,
       collector_name: collectorName,
-    });
+    };
+
+    if (selectedSubject) {
+      insertData.subject_id = selectedSubject.id;
+      insertData.subject_name = selectedSubject.name;
+    }
+
+    const { error } = await supabase.from("submissions").insert(insertData);
 
     setIsSubmitting(false);
 
@@ -328,7 +354,9 @@ const CollectorDashboard = () => {
             <CardHeader className="pb-3">
               <CardTitle className="text-lg">إدخال بيانات جديدة</CardTitle>
               <CardDescription>
-                سعر الخدمة: {servicePrice} | عمولتك: {commissionAmount} لكل تسجيل
+                {selectedSubject
+                  ? `المادة: ${selectedSubject.name} | سعر الخدمة: ${selectedSubject.service_price} | عمولتك: ${selectedSubject.commission_amount}`
+                  : `سعر الخدمة: ${servicePrice} | عمولتك: ${commissionAmount} لكل تسجيل`}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -339,6 +367,35 @@ const CollectorDashboard = () => {
                 </div>
               )}
               <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Subject Selection */}
+                {subjects.length > 0 && (
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium flex items-center gap-1">
+                      <BookOpen className="w-4 h-4" />
+                      اختر المادة
+                    </Label>
+                    <div className="flex flex-wrap gap-2">
+                      {subjects.map((subject) => (
+                        <button
+                          key={subject.id}
+                          type="button"
+                          onClick={() => setSelectedSubjectId(subject.id)}
+                          className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all border-2 ${
+                            selectedSubjectId === subject.id
+                              ? "border-primary bg-primary/10 text-primary shadow-sm"
+                              : "border-border bg-card text-foreground hover:border-primary/50"
+                          }`}
+                        >
+                          <span className="block">{subject.name}</span>
+                          <span className="text-[10px] text-muted-foreground">
+                            السعر: {subject.service_price} | العمولة: {subject.commission_amount}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="fullName" className="text-sm font-medium">
@@ -544,6 +601,7 @@ const CollectorDashboard = () => {
                         <TableHead className="text-right font-semibold">#</TableHead>
                         <TableHead className="text-right font-semibold">الاسم</TableHead>
                         <TableHead className="text-right font-semibold">رقم الهاتف</TableHead>
+                        <TableHead className="text-right font-semibold">المادة</TableHead>
                         <TableHead className="text-right font-semibold">التوريد</TableHead>
                         <TableHead className="text-right font-semibold">التاريخ</TableHead>
                       </TableRow>
@@ -586,6 +644,15 @@ const CollectorDashboard = () => {
                               {submission.phone_number}
                               <Copy className="w-3 h-3 opacity-30" />
                             </span>
+                          </TableCell>
+                          <TableCell>
+                            {submission.subject_name ? (
+                              <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-md text-xs font-medium">
+                                {submission.subject_name}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">—</span>
+                            )}
                           </TableCell>
                           <TableCell>
                             <span

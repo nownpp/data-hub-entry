@@ -24,6 +24,10 @@ import {
   X,
   Package,
   CheckCircle2,
+  BookOpen,
+  Plus,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import SettingsCard from "@/components/admin/SettingsCard";
@@ -39,6 +43,7 @@ interface Submission {
   is_delivered: boolean;
   batch_id: string | null;
   is_research_completed: boolean;
+  subject_name: string | null;
 }
 
 interface Collector {
@@ -60,18 +65,34 @@ interface Batch {
   delivered_at: string | null;
 }
 
+interface Subject {
+  id: string;
+  name: string;
+  service_price: number;
+  commission_amount: number;
+  is_active: boolean;
+  created_at: string;
+}
+
 const AdminDashboard = () => {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [collectors, setCollectors] = useState<Collector[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [newCollectorName, setNewCollectorName] = useState("");
   const [newCollectorPassword, setNewCollectorPassword] = useState("");
-  const [activeTab, setActiveTab] = useState<"submissions" | "batches" | "collectors" | "finance">("submissions");
+  const [activeTab, setActiveTab] = useState<"submissions" | "batches" | "collectors" | "finance" | "subjects">("submissions");
   const [filterCollector, setFilterCollector] = useState<string | null>(null);
   const [submissionFilter, setSubmissionFilter] = useState<"active" | "completed">("active");
   const [servicePrice, setServicePrice] = useState(0);
   const [commissionAmount, setCommissionAmount] = useState(0);
+
+  // Subject form
+  const [newSubjectName, setNewSubjectName] = useState("");
+  const [newSubjectPrice, setNewSubjectPrice] = useState("");
+  const [newSubjectCommission, setNewSubjectCommission] = useState("");
+
   const navigate = useNavigate();
 
   const fetchSubmissions = async () => {
@@ -116,6 +137,19 @@ const AdminDashboard = () => {
     setBatches(data || []);
   };
 
+  const fetchSubjects = async () => {
+    const { data, error } = await supabase
+      .from("subjects")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      toast.error("حدث خطأ في تحميل المواد");
+      return;
+    }
+    setSubjects(data || []);
+  };
+
   const fetchSettings = async () => {
     const { data } = await supabase
       .from("system_settings")
@@ -130,7 +164,7 @@ const AdminDashboard = () => {
   };
 
   const fetchAll = async () => {
-    await Promise.all([fetchSubmissions(), fetchCollectors(), fetchBatches(), fetchSettings()]);
+    await Promise.all([fetchSubmissions(), fetchCollectors(), fetchBatches(), fetchSettings(), fetchSubjects()]);
   };
 
   const handleDeleteSubmission = async (id: string) => {
@@ -172,7 +206,6 @@ const AdminDashboard = () => {
   const handleToggleBatchDelivery = async (batch: Batch) => {
     const newStatus = !batch.is_delivered;
 
-    // Update batch
     const { error: batchErr } = await supabase
       .from("batches")
       .update({
@@ -186,7 +219,6 @@ const AdminDashboard = () => {
       return;
     }
 
-    // Update all submissions in this batch
     const { error: subErr } = await supabase
       .from("submissions")
       .update({ is_delivered: newStatus })
@@ -262,6 +294,59 @@ const AdminDashboard = () => {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate("/admin");
+  };
+
+  // Subject management
+  const handleAddSubject = async () => {
+    const name = newSubjectName.trim();
+    if (!name) {
+      toast.error("يرجى إدخال اسم المادة");
+      return;
+    }
+    const price = parseFloat(newSubjectPrice) || 0;
+    const commission = parseFloat(newSubjectCommission) || 0;
+
+    const { error } = await supabase.from("subjects").insert({
+      name,
+      service_price: price,
+      commission_amount: commission,
+    });
+
+    if (error) {
+      toast.error("حدث خطأ أثناء إضافة المادة");
+      return;
+    }
+
+    toast.success("تم إضافة المادة بنجاح");
+    setNewSubjectName("");
+    setNewSubjectPrice("");
+    setNewSubjectCommission("");
+    fetchSubjects();
+  };
+
+  const handleToggleSubject = async (id: string, currentActive: boolean) => {
+    const { error } = await supabase
+      .from("subjects")
+      .update({ is_active: !currentActive })
+      .eq("id", id);
+
+    if (error) {
+      toast.error("حدث خطأ في تحديث المادة");
+      return;
+    }
+
+    toast.success(currentActive ? "تم إخفاء المادة عن المُدخلين" : "تم إظهار المادة للمُدخلين");
+    fetchSubjects();
+  };
+
+  const handleDeleteSubject = async (id: string) => {
+    const { error } = await supabase.from("subjects").delete().eq("id", id);
+    if (error) {
+      toast.error("حدث خطأ أثناء حذف المادة");
+      return;
+    }
+    toast.success("تم حذف المادة بنجاح");
+    fetchSubjects();
   };
 
   useEffect(() => {
@@ -355,6 +440,7 @@ const AdminDashboard = () => {
             [
               { key: "submissions", label: "البيانات المسجلة" },
               { key: "batches", label: `الدفعات (${batches.length})` },
+              { key: "subjects", label: `المواد (${subjects.length})` },
               { key: "finance", label: "المالية" },
               { key: "collectors", label: "إدارة المُدخلين" },
             ] as const
@@ -465,6 +551,7 @@ const AdminDashboard = () => {
                           <TableHead className="text-right font-semibold">#</TableHead>
                           <TableHead className="text-right font-semibold">الاسم</TableHead>
                           <TableHead className="text-right font-semibold">رقم الهاتف</TableHead>
+                          <TableHead className="text-right font-semibold">المادة</TableHead>
                           <TableHead className="text-right font-semibold">المُدخل</TableHead>
                           <TableHead className="text-right font-semibold">التوريد</TableHead>
                           <TableHead className="text-right font-semibold">التاريخ</TableHead>
@@ -503,6 +590,15 @@ const AdminDashboard = () => {
                                 {submission.phone_number}
                                 <Copy className="w-3 h-3 opacity-30" />
                               </span>
+                            </TableCell>
+                            <TableCell>
+                              {submission.subject_name ? (
+                                <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-md text-xs font-medium">
+                                  {submission.subject_name}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">—</span>
+                              )}
                             </TableCell>
                             <TableCell>
                               {submission.collector_name ? (
@@ -639,7 +735,7 @@ const AdminDashboard = () => {
                           <TableHead className="text-right font-semibold">المُدخل</TableHead>
                           <TableHead className="text-right font-semibold">المبلغ</TableHead>
                           <TableHead className="text-right font-semibold">الحالة</TableHead>
-                         <TableHead className="text-right font-semibold">التاريخ</TableHead>
+                          <TableHead className="text-right font-semibold">التاريخ</TableHead>
                           <TableHead className="text-right font-semibold">إجراء</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -681,6 +777,123 @@ const AdminDashboard = () => {
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => handleDeleteBatch(batch.id)}
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Subjects Tab */}
+        {activeTab === "subjects" && (
+          <div className="space-y-4 animate-fade-in">
+            <Card className="shadow-card">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Plus className="w-5 h-5 text-primary" />
+                  إضافة مادة جديدة
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Input
+                    value={newSubjectName}
+                    onChange={(e) => setNewSubjectName(e.target.value)}
+                    placeholder="اسم المادة"
+                    className="text-right"
+                    maxLength={100}
+                  />
+                  <Input
+                    type="number"
+                    value={newSubjectPrice}
+                    onChange={(e) => setNewSubjectPrice(e.target.value)}
+                    placeholder="سعر الخدمة"
+                    className="text-right w-full sm:w-32"
+                    dir="ltr"
+                    min="0"
+                  />
+                  <Input
+                    type="number"
+                    value={newSubjectCommission}
+                    onChange={(e) => setNewSubjectCommission(e.target.value)}
+                    placeholder="العمولة"
+                    className="text-right w-full sm:w-32"
+                    dir="ltr"
+                    min="0"
+                  />
+                  <Button onClick={handleAddSubject} className="gap-2 shrink-0">
+                    <Plus className="w-4 h-4" />
+                    إضافة
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-card">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <BookOpen className="w-5 h-5 text-primary" />
+                  المواد ({subjects.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {subjects.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <BookOpen className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                    <p>لم يتم إضافة أي مواد بعد</p>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/50">
+                          <TableHead className="text-right font-semibold">المادة</TableHead>
+                          <TableHead className="text-right font-semibold">سعر الخدمة</TableHead>
+                          <TableHead className="text-right font-semibold">العمولة</TableHead>
+                          <TableHead className="text-right font-semibold">الحالة</TableHead>
+                          <TableHead className="text-right font-semibold">إجراءات</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {subjects.map((subject) => (
+                          <TableRow key={subject.id} className="hover:bg-muted/30 transition-colors">
+                            <TableCell className="font-medium">{subject.name}</TableCell>
+                            <TableCell className="font-bold text-primary">{subject.service_price}</TableCell>
+                            <TableCell className="text-success font-semibold">{subject.commission_amount}</TableCell>
+                            <TableCell>
+                              <button
+                                onClick={() => handleToggleSubject(subject.id, subject.is_active)}
+                                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors flex items-center gap-1 ${
+                                  subject.is_active
+                                    ? "bg-success/10 text-success"
+                                    : "bg-destructive/10 text-destructive"
+                                }`}
+                              >
+                                {subject.is_active ? (
+                                  <>
+                                    <Eye className="w-3 h-3" /> ظاهرة
+                                  </>
+                                ) : (
+                                  <>
+                                    <EyeOff className="w-3 h-3" /> مخفية
+                                  </>
+                                )}
+                              </button>
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDeleteSubject(subject.id)}
                                 className="text-destructive hover:text-destructive hover:bg-destructive/10"
                               >
                                 <Trash2 className="w-4 h-4" />
