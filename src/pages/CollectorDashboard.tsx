@@ -554,7 +554,7 @@ const CollectorDashboard = () => {
                         .map((submission, index) => (
                         <TableRow
                           key={submission.id}
-                          className={`hover:bg-muted/30 transition-colors ${submission.is_research_completed ? "bg-success/5" : ""}`}
+                          className={`transition-colors ${submission.is_research_completed ? "bg-success/15 hover:bg-success/25 border-l-4 border-l-success" : "hover:bg-muted/30"}`}
                         >
                           <TableCell className="font-medium text-muted-foreground">
                             {index + 1}
