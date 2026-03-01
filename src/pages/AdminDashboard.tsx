@@ -159,6 +159,16 @@ const AdminDashboard = () => {
     );
   };
 
+  const handleDeleteBatch = async (id: string) => {
+    const { error } = await supabase.from("batches").delete().eq("id", id);
+    if (error) {
+      toast.error("حدث خطأ أثناء حذف الدفعة");
+      return;
+    }
+    toast.success("تم حذف الدفعة بنجاح");
+    setBatches((prev) => prev.filter((b) => b.id !== id));
+  };
+
   const handleToggleBatchDelivery = async (batch: Batch) => {
     const newStatus = !batch.is_delivered;
 
@@ -629,7 +639,8 @@ const AdminDashboard = () => {
                           <TableHead className="text-right font-semibold">المُدخل</TableHead>
                           <TableHead className="text-right font-semibold">المبلغ</TableHead>
                           <TableHead className="text-right font-semibold">الحالة</TableHead>
-                          <TableHead className="text-right font-semibold">التاريخ</TableHead>
+                         <TableHead className="text-right font-semibold">التاريخ</TableHead>
+                          <TableHead className="text-right font-semibold">إجراء</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -664,6 +675,16 @@ const AdminDashboard = () => {
                             </TableCell>
                             <TableCell className="text-muted-foreground text-sm">
                               {formatDate(batch.created_at)}
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDeleteBatch(batch.id)}
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
                             </TableCell>
                           </TableRow>
                         ))}
