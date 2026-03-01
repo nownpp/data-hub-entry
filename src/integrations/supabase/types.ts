@@ -74,6 +74,33 @@ export type Database = {
         }
         Relationships: []
       }
+      subjects: {
+        Row: {
+          commission_amount: number
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          service_price: number
+        }
+        Insert: {
+          commission_amount?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          service_price?: number
+        }
+        Update: {
+          commission_amount?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          service_price?: number
+        }
+        Relationships: []
+      }
       submissions: {
         Row: {
           batch_id: string | null
@@ -84,6 +111,8 @@ export type Database = {
           is_delivered: boolean
           is_research_completed: boolean
           phone_number: string
+          subject_id: string | null
+          subject_name: string | null
         }
         Insert: {
           batch_id?: string | null
@@ -94,6 +123,8 @@ export type Database = {
           is_delivered?: boolean
           is_research_completed?: boolean
           phone_number: string
+          subject_id?: string | null
+          subject_name?: string | null
         }
         Update: {
           batch_id?: string | null
@@ -104,6 +135,8 @@ export type Database = {
           is_delivered?: boolean
           is_research_completed?: boolean
           phone_number?: string
+          subject_id?: string | null
+          subject_name?: string | null
         }
         Relationships: [
           {
@@ -111,6 +144,13 @@ export type Database = {
             columns: ["batch_id"]
             isOneToOne: false
             referencedRelation: "batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "submissions_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
             referencedColumns: ["id"]
           },
         ]
