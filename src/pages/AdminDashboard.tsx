@@ -84,6 +84,7 @@ const AdminDashboard = () => {
   const [newCollectorPassword, setNewCollectorPassword] = useState("");
   const [activeTab, setActiveTab] = useState<"submissions" | "batches" | "collectors" | "finance" | "subjects">("submissions");
   const [filterCollector, setFilterCollector] = useState<string | null>(null);
+  const [filterSubject, setFilterSubject] = useState<string | null>(null);
   const [submissionFilter, setSubmissionFilter] = useState<"active" | "completed">("active");
   const [servicePrice, setServicePrice] = useState(0);
   const [commissionAmount, setCommissionAmount] = useState(0);
@@ -388,10 +389,11 @@ const AdminDashboard = () => {
 
   const filteredSubmissions = submissions
     .filter((s) => !filterCollector || s.collector_name === filterCollector)
+    .filter((s) => !filterSubject || s.subject_name === filterSubject)
     .filter((s) => submissionFilter === "completed" ? s.is_research_completed : !s.is_research_completed);
 
-  const activeCount = submissions.filter((s) => !s.is_research_completed && (!filterCollector || s.collector_name === filterCollector)).length;
-  const completedCount = submissions.filter((s) => s.is_research_completed && (!filterCollector || s.collector_name === filterCollector)).length;
+  const activeCount = submissions.filter((s) => !s.is_research_completed && (!filterCollector || s.collector_name === filterCollector) && (!filterSubject || s.subject_name === filterSubject)).length;
+  const completedCount = submissions.filter((s) => s.is_research_completed && (!filterCollector || s.collector_name === filterCollector) && (!filterSubject || s.subject_name === filterSubject)).length;
   const deliveredCount = submissions.filter((s) => s.is_delivered).length;
   const undeliveredCount = submissions.length - deliveredCount;
 
@@ -495,6 +497,48 @@ const AdminDashboard = () => {
                         {stat.name} ({stat.count})
                       </button>
                     ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Subject filter */}
+            {subjects.length > 0 && (
+              <Card className="shadow-card">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <BookOpen className="w-4 h-4" />
+                    فلترة حسب المادة
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => setFilterSubject(null)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                        !filterSubject
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                      }`}
+                    >
+                      الكل
+                    </button>
+                    {subjects.map((sub) => {
+                      const subCount = submissions.filter((s) => s.subject_name === sub.name && (!filterCollector || s.collector_name === filterCollector)).length;
+                      return (
+                        <button
+                          key={sub.id}
+                          onClick={() => setFilterSubject(sub.name)}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                            filterSubject === sub.name
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                          }`}
+                        >
+                          {sub.name} ({subCount})
+                        </button>
+                      );
+                    })}
                   </div>
                 </CardContent>
               </Card>
