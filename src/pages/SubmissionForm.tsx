@@ -12,7 +12,7 @@ import { z } from "zod";
 
 const submissionSchema = z.object({
   full_name: z.string().trim().min(2, "الاسم يجب أن يكون حرفين على الأقل").max(100, "الاسم طويل جداً"),
-  phone_number: z.string().trim().min(8, "رقم الهاتف غير صحيح").max(20, "رقم الهاتف طويل جداً").regex(/^[\d+\-\s()]+$/, "رقم الهاتف يحتوي على أحرف غير صالحة"),
+  phone_number: z.string().trim().max(20, "رقم الهاتف طويل جداً").regex(/^[\d+\-\s()]*$/, "رقم الهاتف يحتوي على أحرف غير صالحة").optional().or(z.literal("")),
 });
 
 const SubmissionForm = () => {
@@ -225,7 +225,7 @@ const SubmissionForm = () => {
                   placeholder="أدخل رقم هاتفك"
                   className="pr-10 text-right"
                   type="tel"
-                  required
+                  
                   maxLength={20}
                   dir="ltr"
                 />

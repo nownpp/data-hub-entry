@@ -42,9 +42,10 @@ const submissionSchema = z.object({
   phone_number: z
     .string()
     .trim()
-    .min(8, "رقم الهاتف غير صحيح")
     .max(20, "رقم الهاتف طويل جداً")
-    .regex(/^[\d+\-\s()]+$/, "رقم الهاتف يحتوي على أحرف غير صالحة"),
+    .regex(/^[\d+\-\s()]*$/, "رقم الهاتف يحتوي على أحرف غير صالحة")
+    .optional()
+    .or(z.literal("")),
 });
 
 interface Submission {
@@ -163,7 +164,7 @@ const CollectorDashboard = () => {
     setIsSubmitting(true);
     const insertData: any = {
       full_name: validation.data.full_name,
-      phone_number: validation.data.phone_number,
+      phone_number: validation.data.phone_number || "",
       collector_name: collectorName,
     };
 
@@ -427,7 +428,7 @@ const CollectorDashboard = () => {
                         placeholder="أدخل رقم الهاتف"
                         className="pr-10 text-right"
                         type="tel"
-                        required
+                        
                         maxLength={20}
                         dir="ltr"
                       />
