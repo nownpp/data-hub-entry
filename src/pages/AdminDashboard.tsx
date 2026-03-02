@@ -524,7 +524,7 @@ const AdminDashboard = () => {
                       الكل
                     </button>
                     {subjects.map((sub) => {
-                      const subCount = submissions.filter((s) => s.subject_name === sub.name && (!filterCollector || s.collector_name === filterCollector)).length;
+                      const subCount = submissions.filter((s) => s.subject_name === sub.name && (!filterCollector || s.collector_name === filterCollector) && !s.is_research_completed).length;
                       return (
                         <button
                           key={sub.id}
