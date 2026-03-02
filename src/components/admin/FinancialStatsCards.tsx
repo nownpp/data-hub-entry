@@ -4,26 +4,20 @@ import { Users, UserPlus, Banknote, TrendingUp, Truck } from "lucide-react";
 interface FinancialStatsCardsProps {
   totalSubmissions: number;
   collectorsCount: number;
-  servicePrice: number;
-  commissionAmount: number;
-  deliveredCount: number;
-  undeliveredCount: number;
+  totalRevenue: number;
+  totalCommissions: number;
+  deliveredAmount: number;
+  pendingAmount: number;
 }
 
 const FinancialStatsCards = ({
   totalSubmissions,
   collectorsCount,
-  servicePrice,
-  commissionAmount,
-  deliveredCount,
-  undeliveredCount,
+  totalRevenue,
+  totalCommissions,
+  deliveredAmount,
+  pendingAmount,
 }: FinancialStatsCardsProps) => {
-  const totalRevenue = totalSubmissions * servicePrice;
-  const totalCommissions = totalSubmissions * commissionAmount;
-  const totalToDeliver = totalSubmissions * (servicePrice - commissionAmount);
-  const deliveredAmount = deliveredCount * (servicePrice - commissionAmount);
-  const pendingAmount = undeliveredCount * (servicePrice - commissionAmount);
-
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 animate-fade-up">
       <Card className="shadow-card">
@@ -89,7 +83,7 @@ const FinancialStatsCards = ({
               <TrendingUp className="w-4.5 h-4.5 text-destructive" />
             </div>
             <div className="min-w-0">
-              <p className="text-[11px] text-muted-foreground truncate">معلّق التوريد</p>
+              <p className="text-[11px] text-muted-foreground truncate">لم يتم تسليمه</p>
               <p className="text-xl font-bold text-destructive">{pendingAmount}</p>
             </div>
           </div>

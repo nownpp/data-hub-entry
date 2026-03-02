@@ -225,11 +225,18 @@ const CollectorDashboard = () => {
     });
   };
 
-  // Financial calculations
+  // Financial calculations (per-subject pricing)
   const totalCount = submissions.length;
-  const totalCommission = totalCount * commissionAmount;
-  const netPerSub = servicePrice - commissionAmount;
-  const totalToDeliver = totalCount * netPerSub;
+  const getSubjectForSub = (s: Submission) => subjects.find((sub) => sub.name === s.subject_name);
+  const totalCommission = submissions.reduce((sum, s) => {
+    const sub = getSubjectForSub(s);
+    return sum + (sub ? sub.commission_amount : commissionAmount);
+  }, 0);
+  const totalToDeliver = submissions.reduce((sum, s) => {
+    const sub = getSubjectForSub(s);
+    const net = sub ? sub.service_price - sub.commission_amount : servicePrice - commissionAmount;
+    return sum + net;
+  }, 0);
   const totalDelivered = batches.filter((b) => b.is_delivered).reduce((sum, b) => sum + Number(b.net_amount), 0);
   const pendingBatches = batches.filter((b) => !b.is_delivered);
   const pendingAmount = pendingBatches.reduce((sum, b) => sum + Number(b.net_amount), 0);
@@ -318,8 +325,8 @@ const CollectorDashboard = () => {
                   <TrendingUp className="w-4 h-4 text-destructive" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[11px] text-muted-foreground truncate">معلّق التوريد</p>
-                  <p className="text-xl font-bold text-destructive">{pendingAmount}</p>
+                  <p className="text-[11px] text-muted-foreground truncate">لم يتم تسليمه</p>
+                  <p className="text-xl font-bold text-destructive">{remainingToDeliver > 0 ? remainingToDeliver : 0}</p>
                 </div>
               </div>
             </CardContent>

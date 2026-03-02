@@ -397,6 +397,25 @@ const AdminDashboard = () => {
   const deliveredCount = submissions.filter((s) => s.is_delivered).length;
   const undeliveredCount = submissions.length - deliveredCount;
 
+  // Per-subject financial calculations
+  const getSubjectForSubmission = (s: Submission) => subjects.find((sub) => sub.name === s.subject_name);
+  const calcNetForSubmission = (s: Submission) => {
+    const sub = getSubjectForSubmission(s);
+    if (sub) return sub.service_price - sub.commission_amount;
+    return servicePrice - commissionAmount;
+  };
+  const calcRevenueForSubmission = (s: Submission) => {
+    const sub = getSubjectForSubmission(s);
+    return sub ? sub.service_price : servicePrice;
+  };
+  const totalRevenue = submissions.reduce((sum, s) => sum + calcRevenueForSubmission(s), 0);
+  const totalDeliveredAmount = submissions.filter((s) => s.is_delivered).reduce((sum, s) => sum + calcNetForSubmission(s), 0);
+  const totalPendingAmount = submissions.filter((s) => !s.is_delivered).reduce((sum, s) => sum + calcNetForSubmission(s), 0);
+  const totalCommissionsCalc = submissions.reduce((sum, s) => {
+    const sub = getSubjectForSubmission(s);
+    return sum + (sub ? sub.commission_amount : commissionAmount);
+  }, 0);
+
   const filteredBatches = filterCollector
     ? batches.filter((b) => b.collector_name === filterCollector)
     : batches;
@@ -430,10 +449,10 @@ const AdminDashboard = () => {
         <FinancialStatsCards
           totalSubmissions={submissions.length}
           collectorsCount={collectors.length}
-          servicePrice={servicePrice}
-          commissionAmount={commissionAmount}
-          deliveredCount={deliveredCount}
-          undeliveredCount={undeliveredCount}
+          totalRevenue={totalRevenue}
+          totalCommissions={totalCommissionsCalc}
+          deliveredAmount={totalDeliveredAmount}
+          pendingAmount={totalPendingAmount}
         />
 
         {/* Tabs */}
@@ -965,6 +984,7 @@ const AdminDashboard = () => {
             <CollectorFinanceTable
               collectors={collectors}
               submissions={submissions}
+              subjects={subjects}
               servicePrice={servicePrice}
               commissionAmount={commissionAmount}
             />

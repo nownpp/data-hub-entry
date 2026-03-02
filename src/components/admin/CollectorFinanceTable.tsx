@@ -19,11 +19,20 @@ interface Submission {
   id: string;
   collector_name: string | null;
   is_delivered: boolean;
+  subject_name: string | null;
+}
+
+interface Subject {
+  id: string;
+  name: string;
+  service_price: number;
+  commission_amount: number;
 }
 
 interface CollectorFinanceTableProps {
   collectors: Collector[];
   submissions: Submission[];
+  subjects: Subject[];
   servicePrice: number;
   commissionAmount: number;
 }
@@ -31,27 +40,39 @@ interface CollectorFinanceTableProps {
 const CollectorFinanceTable = ({
   collectors,
   submissions,
+  subjects,
   servicePrice,
   commissionAmount,
 }: CollectorFinanceTableProps) => {
-  const netPerSubmission = servicePrice - commissionAmount;
+  const getNet = (s: Submission) => {
+    const sub = subjects.find((su) => su.name === s.subject_name);
+    return sub ? sub.service_price - sub.commission_amount : servicePrice - commissionAmount;
+  };
+  const getCommission = (s: Submission) => {
+    const sub = subjects.find((su) => su.name === s.subject_name);
+    return sub ? sub.commission_amount : commissionAmount;
+  };
+  const getPrice = (s: Submission) => {
+    const sub = subjects.find((su) => su.name === s.subject_name);
+    return sub ? sub.service_price : servicePrice;
+  };
 
   const collectorFinances = collectors.map((c) => {
     const collectorSubs = submissions.filter((s) => s.collector_name === c.name);
     const total = collectorSubs.length;
-    const delivered = collectorSubs.filter((s) => s.is_delivered).length;
-    const pending = total - delivered;
+    const delivered = collectorSubs.filter((s) => s.is_delivered);
+    const pending = collectorSubs.filter((s) => !s.is_delivered);
 
     return {
       name: c.name,
       isActive: c.is_active,
       total,
-      commission: total * commissionAmount,
-      totalCollected: total * servicePrice,
-      toDeliver: total * netPerSubmission,
-      delivered: delivered * netPerSubmission,
-      pending: pending * netPerSubmission,
-      pendingCount: pending,
+      commission: collectorSubs.reduce((sum, s) => sum + getCommission(s), 0),
+      totalCollected: collectorSubs.reduce((sum, s) => sum + getPrice(s), 0),
+      toDeliver: collectorSubs.reduce((sum, s) => sum + getNet(s), 0),
+      delivered: delivered.reduce((sum, s) => sum + getNet(s), 0),
+      pending: pending.reduce((sum, s) => sum + getNet(s), 0),
+      pendingCount: pending.length,
     };
   }).sort((a, b) => b.total - a.total);
 
@@ -76,7 +97,7 @@ const CollectorFinanceTable = ({
                 <TableHead className="text-right font-semibold">إجمالي المحصّل</TableHead>
                 <TableHead className="text-right font-semibold">المطلوب توريده</TableHead>
                 <TableHead className="text-right font-semibold">تم توريده</TableHead>
-                <TableHead className="text-right font-semibold">معلّق</TableHead>
+                <TableHead className="text-right font-semibold">لم يتم تسليمه</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
