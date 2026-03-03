@@ -409,8 +409,9 @@ const AdminDashboard = () => {
     return sub ? sub.service_price : servicePrice;
   };
   const totalRevenue = submissions.reduce((sum, s) => sum + calcRevenueForSubmission(s), 0);
-  const totalDeliveredAmount = submissions.filter((s) => s.is_delivered).reduce((sum, s) => sum + calcNetForSubmission(s), 0);
-  const totalPendingAmount = submissions.filter((s) => !s.is_delivered).reduce((sum, s) => sum + calcNetForSubmission(s), 0);
+  const totalDeliveredAmount = batches.filter((b) => b.is_delivered).reduce((sum, b) => sum + Number(b.net_amount), 0);
+  const totalNetRequired = submissions.reduce((sum, s) => sum + calcNetForSubmission(s), 0);
+  const totalPendingAmount = totalNetRequired - totalDeliveredAmount;
   const totalCommissionsCalc = submissions.reduce((sum, s) => {
     const sub = getSubjectForSubmission(s);
     return sum + (sub ? sub.commission_amount : commissionAmount);
@@ -985,6 +986,7 @@ const AdminDashboard = () => {
               collectors={collectors}
               submissions={submissions}
               subjects={subjects}
+              batches={batches}
               servicePrice={servicePrice}
               commissionAmount={commissionAmount}
             />

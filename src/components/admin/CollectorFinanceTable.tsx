@@ -29,10 +29,18 @@ interface Subject {
   commission_amount: number;
 }
 
+interface Batch {
+  id: string;
+  collector_name: string;
+  net_amount: number;
+  is_delivered: boolean;
+}
+
 interface CollectorFinanceTableProps {
   collectors: Collector[];
   submissions: Submission[];
   subjects: Subject[];
+  batches: Batch[];
   servicePrice: number;
   commissionAmount: number;
 }
@@ -41,6 +49,7 @@ const CollectorFinanceTable = ({
   collectors,
   submissions,
   subjects,
+  batches,
   servicePrice,
   commissionAmount,
 }: CollectorFinanceTableProps) => {
@@ -59,9 +68,11 @@ const CollectorFinanceTable = ({
 
   const collectorFinances = collectors.map((c) => {
     const collectorSubs = submissions.filter((s) => s.collector_name === c.name);
+    const collectorBatches = batches.filter((b) => b.collector_name === c.name);
     const total = collectorSubs.length;
-    const delivered = collectorSubs.filter((s) => s.is_delivered);
-    const pending = collectorSubs.filter((s) => !s.is_delivered);
+    const totalToDeliver = collectorSubs.reduce((sum, s) => sum + getNet(s), 0);
+    const delivered = collectorBatches.filter((b) => b.is_delivered).reduce((sum, b) => sum + Number(b.net_amount), 0);
+    const pending = totalToDeliver - delivered;
 
     return {
       name: c.name,
@@ -69,10 +80,10 @@ const CollectorFinanceTable = ({
       total,
       commission: collectorSubs.reduce((sum, s) => sum + getCommission(s), 0),
       totalCollected: collectorSubs.reduce((sum, s) => sum + getPrice(s), 0),
-      toDeliver: collectorSubs.reduce((sum, s) => sum + getNet(s), 0),
-      delivered: delivered.reduce((sum, s) => sum + getNet(s), 0),
-      pending: pending.reduce((sum, s) => sum + getNet(s), 0),
-      pendingCount: pending.length,
+      toDeliver: totalToDeliver,
+      delivered,
+      pending,
+      pendingCount: pending > 0 ? 1 : 0,
     };
   }).sort((a, b) => b.total - a.total);
 
