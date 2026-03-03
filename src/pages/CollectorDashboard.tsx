@@ -94,6 +94,7 @@ const CollectorDashboard = () => {
   const [batchAmount, setBatchAmount] = useState("");
   const [activeTab, setActiveTab] = useState<"form" | "batches" | "history">("form");
   const [historyFilter, setHistoryFilter] = useState<"active" | "completed">("active");
+  const [expandedSubject, setExpandedSubject] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const collectorName = sessionStorage.getItem("collector_name");
@@ -587,7 +588,6 @@ const CollectorDashboard = () => {
 
             {(() => {
               const filtered = submissions.filter((s) => historyFilter === "completed" ? s.is_research_completed : !s.is_research_completed);
-              // Group by subject
               const subjectNames = [...new Set(filtered.map((s) => s.subject_name || "بدون مادة"))];
               
               if (isLoading) {
@@ -607,107 +607,136 @@ const CollectorDashboard = () => {
                 );
               }
 
-              return subjectNames.map((subjectName) => {
-                const subSubs = filtered.filter((s) => (s.subject_name || "بدون مادة") === subjectName);
-                return (
-                  <Card key={subjectName} className="shadow-card mb-4">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <BookOpen className="w-4 h-4 text-primary" />
-                        {subjectName}
-                        <span className="text-sm font-normal text-muted-foreground">({subSubs.length})</span>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="rounded-lg border overflow-x-auto">
-                        <Table>
-                          <TableHeader>
-                            <TableRow className="bg-muted/50">
-                              <TableHead className="text-right font-semibold">#</TableHead>
-                              <TableHead className="text-right font-semibold">الاسم</TableHead>
-                              <TableHead className="text-right font-semibold">رقم الهاتف</TableHead>
-                              <TableHead className="text-right font-semibold">التوريد</TableHead>
-                              <TableHead className="text-right font-semibold">التاريخ</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {subSubs.map((submission, index) => (
-                              <TableRow
-                                key={submission.id}
-                                className={`transition-colors border-r-4 ${
-                                  submission.is_research_completed
-                                    ? "bg-success/15 hover:bg-success/25 border-r-success"
-                                    : "bg-destructive/10 hover:bg-destructive/15 border-r-destructive"
-                                }`}
-                              >
-                                <TableCell className="font-medium text-muted-foreground">
-                                  {index + 1}
-                                </TableCell>
-                                <TableCell
-                                  className={`font-medium cursor-pointer transition-colors ${submission.is_research_completed ? "text-success hover:text-success/80" : "text-foreground hover:text-primary"}`}
-                                  onClick={() => {
-                                    navigator.clipboard.writeText(submission.full_name);
-                                    toast.success("تم نسخ الاسم");
-                                  }}
-                                  title="انقر للنسخ"
-                                >
-                                  <span className="flex items-center gap-1">
-                                    {submission.is_research_completed ? <CheckCircle2 className="w-3.5 h-3.5 text-success" /> : <X className="w-3.5 h-3.5 text-destructive" />}
-                                    {submission.full_name}
-                                    <Copy className="w-3 h-3 opacity-30" />
-                                  </span>
-                                </TableCell>
-                                <TableCell
-                                  dir="ltr"
-                                  className="text-left cursor-pointer hover:text-primary transition-colors"
-                                  onClick={() => {
-                                    navigator.clipboard.writeText(submission.phone_number);
-                                    toast.success("تم نسخ رقم الهاتف");
-                                  }}
-                                  title="انقر للنسخ"
-                                >
-                                  <span className="flex items-center gap-1">
-                                    {submission.phone_number}
-                                    <Copy className="w-3 h-3 opacity-30" />
-                                  </span>
-                                </TableCell>
-                                <TableCell>
-                                  <span
-                                    className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                                      submission.is_delivered
-                                        ? "bg-success/10 text-success"
-                                        : submission.batch_id
-                                        ? "bg-amber-500/10 text-amber-600"
-                                        : "bg-destructive/10 text-destructive"
+              return (
+                <>
+                  {/* Subject Buttons */}
+                  <div className="flex flex-wrap gap-2">
+                    {subjectNames.map((subjectName) => {
+                      const count = filtered.filter((s) => (s.subject_name || "بدون مادة") === subjectName).length;
+                      const isExpanded = expandedSubject === subjectName;
+                      return (
+                        <button
+                          key={subjectName}
+                          onClick={() => setExpandedSubject(isExpanded ? null : subjectName)}
+                          className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all border-2 flex items-center gap-2 ${
+                            isExpanded
+                              ? "border-primary bg-primary/10 text-primary shadow-sm"
+                              : "border-border bg-card text-foreground hover:border-primary/50"
+                          }`}
+                        >
+                          <BookOpen className="w-4 h-4" />
+                          {subjectName}
+                          <span className="bg-primary/20 text-primary px-1.5 py-0.5 rounded-md text-xs font-bold">{count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Expanded Subject Table */}
+                  {expandedSubject && (() => {
+                    const subSubs = filtered.filter((s) => (s.subject_name || "بدون مادة") === expandedSubject);
+                    if (subSubs.length === 0) return null;
+                    return (
+                      <Card className="shadow-card animate-fade-in">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <BookOpen className="w-4 h-4 text-primary" />
+                            {expandedSubject}
+                            <span className="text-sm font-normal text-muted-foreground">({subSubs.length})</span>
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="rounded-lg border overflow-x-auto">
+                            <Table>
+                              <TableHeader>
+                                <TableRow className="bg-muted/50">
+                                  <TableHead className="text-right font-semibold">#</TableHead>
+                                  <TableHead className="text-right font-semibold">الاسم</TableHead>
+                                  <TableHead className="text-right font-semibold">رقم الهاتف</TableHead>
+                                  <TableHead className="text-right font-semibold">التوريد</TableHead>
+                                  <TableHead className="text-right font-semibold">التاريخ</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {subSubs.map((submission, index) => (
+                                  <TableRow
+                                    key={submission.id}
+                                    className={`transition-colors border-r-4 ${
+                                      submission.is_research_completed
+                                        ? "bg-success/15 hover:bg-success/25 border-r-success"
+                                        : "bg-destructive/10 hover:bg-destructive/15 border-r-destructive"
                                     }`}
                                   >
-                                    {submission.is_delivered ? (
+                                    <TableCell className="font-medium text-muted-foreground">
+                                      {index + 1}
+                                    </TableCell>
+                                    <TableCell
+                                      className={`font-medium cursor-pointer transition-colors ${submission.is_research_completed ? "text-success hover:text-success/80" : "text-foreground hover:text-primary"}`}
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(submission.full_name);
+                                        toast.success("تم نسخ الاسم");
+                                      }}
+                                      title="انقر للنسخ"
+                                    >
                                       <span className="flex items-center gap-1">
-                                        <Check className="w-3 h-3" /> تم
+                                        {submission.is_research_completed ? <CheckCircle2 className="w-3.5 h-3.5 text-success" /> : <X className="w-3.5 h-3.5 text-destructive" />}
+                                        {submission.full_name}
+                                        <Copy className="w-3 h-3 opacity-30" />
                                       </span>
-                                    ) : submission.batch_id ? (
+                                    </TableCell>
+                                    <TableCell
+                                      dir="ltr"
+                                      className="text-left cursor-pointer hover:text-primary transition-colors"
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(submission.phone_number);
+                                        toast.success("تم نسخ رقم الهاتف");
+                                      }}
+                                      title="انقر للنسخ"
+                                    >
                                       <span className="flex items-center gap-1">
-                                        <Package className="w-3 h-3" /> في دفعة
+                                        {submission.phone_number}
+                                        <Copy className="w-3 h-3 opacity-30" />
                                       </span>
-                                    ) : (
-                                      <span className="flex items-center gap-1">
-                                        <X className="w-3 h-3" /> غير مجمّع
+                                    </TableCell>
+                                    <TableCell>
+                                      <span
+                                        className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                          submission.is_delivered
+                                            ? "bg-success/10 text-success"
+                                            : submission.batch_id
+                                            ? "bg-amber-500/10 text-amber-600"
+                                            : "bg-destructive/10 text-destructive"
+                                        }`}
+                                      >
+                                        {submission.is_delivered ? (
+                                          <span className="flex items-center gap-1">
+                                            <Check className="w-3 h-3" /> تم
+                                          </span>
+                                        ) : submission.batch_id ? (
+                                          <span className="flex items-center gap-1">
+                                            <Package className="w-3 h-3" /> في دفعة
+                                          </span>
+                                        ) : (
+                                          <span className="flex items-center gap-1">
+                                            <X className="w-3 h-3" /> غير مجمّع
+                                          </span>
+                                        )}
                                       </span>
-                                    )}
-                                  </span>
-                                </TableCell>
-                                <TableCell className="text-muted-foreground text-sm">
-                                  {formatDate(submission.created_at)}
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              });
+                                    </TableCell>
+                                    <TableCell className="text-muted-foreground text-sm">
+                                      {formatDate(submission.created_at)}
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })()}
+                </>
+              );
             })()}
           </div>
         )}
